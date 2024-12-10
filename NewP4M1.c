@@ -1,5 +1,3 @@
-//this file will be used for the creation of the correct version of module 1-2 for the project...
-
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
@@ -277,8 +275,12 @@ struct PCB {
 int pid;
 int PC;
 int ACC;
-enum {READY, RUNNING, BLOCKED} state;
+enum {READY, RUNNING, BLOCKED, TERMINATED} state;
 int priority;
+int arrivalTime;
+int burstTime;
+int waitingTime;
+int turnTime;
 int timeRemaining;
 float responseRatio;
 };
@@ -292,7 +294,12 @@ int errorFlag;
 //the amount of processes and the max processes allowed.
 #define MAX_PROCESSES 6
 struct PCB processTable[MAX_PROCESSES];
+struct PCB* readyQueue[MAX_PROCESSES];
+int readyQueueHead = 0;
+int readyQueueTail = 0;
 
+
+// Instruction Codes
 #define ADD 1
 #define SUB 2
 #define LOAD 3
@@ -470,8 +477,6 @@ void loadProgram() {
     // Complete: Load sample instructions into RAM
     // Eg:
     // RAM[0] = LOAD; RAM[1] = 10; // LOAD 10 into ACC
-    // Add more instructions as needed
-    // Core 1 instructions
     RAM[0] = LOAD;   RAM[1] = 10;    
     RAM[2] = ADD;    RAM[3] = 5;     
     RAM[4] = STORE;  RAM[5] = 3;     
@@ -527,14 +532,134 @@ void initCache(){
     }
 }
 
+void initProcesses(){
+	int arrivalTimeRange;
+	int burstTimeRange;
+	printf("Set a max for arrival time range: ");
+	scanf("%d", &arrivalTimeRange);
+	printf("Set a max for burst time range: ");
+	scanf("%d", &burstTimeRange);
+	for(int i = 0; i < MAX_PROCESSES; i++){
+		processTable[i].pid = i + 100;
+		processTable[i].PC = 0;
+		processTable[i].ACC = 0;
+		processTable[i].state = READY;
+		processTable[i].priority = (rand() % 6) + 1;
+		processTable[i].arrivalTime = (rand() % arrivalTimeRange) + 1;
+		processTable[i].burstTime = (rand() % burstTimeRange) + 1;
+		processTable[i].waitingTime = 0;
+		processTable[i].turnTime = 0;
+		processTable[i].timeRemaining = processTable[i].burstTime;
+		processTable[i].responseRatio = 0;
+	}
+}
+
+
+void FCFS_Scheduler() {
+    int currentTime = 0;
+
+    // Sort the Processes by their arrival times
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        readyQueue[i] = &processTable[i];
+    }
+
+    for (int i = 0; i < MAX_PROCESSES - 1; i++) {
+        for (int j = 0; j < MAX_PROCESSES - i - 1; j++) {
+            if (readyQueue[j]->arrivalTime > readyQueue[j + 1]->arrivalTime) {
+                struct PCB* temp = readyQueue[j];
+                readyQueue[j] = readyQueue[j + 1];
+                readyQueue[j + 1] = temp;
+            }
+        }
+    }
+
+    // Execute processes in arrival order
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (currentTime < readyQueue[i]->arrivalTime) {
+            currentTime = readyQueue[i]->arrivalTime;
+        }
+
+        readyQueue[i]->state = RUNNING;
+        readyQueue[i]->waitingTime = currentTime - readyQueue[i]->arrivalTime;
+
+	execute(i);
+        printf("P%d [%d - %d]\n", readyQueue[i]->pid, currentTime, currentTime + readyQueue[i]->burstTime);
+        currentTime += readyQueue[i]->burstTime;
+
+        readyQueue[i]->turnTime = currentTime - readyQueue[i]->arrivalTime;
+
+	readyQueue[i]->timeRemaining = 0;
+        readyQueue[i]->state = TERMINATED;
+    }
+    printf("\n\n");
+}
+
+// Function to display the process table after scheduling
+void display_results() {
+    printf("\nProcess Table:\n");
+    printf("PID\tArrival\tBurst\tWaiting\tTurnaround\n");
+
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        printf("%d\t%d\t%d\t%d\t%d\n",
+            processTable[i].pid,
+            processTable[i].arrivalTime,
+            processTable[i].burstTime,
+            processTable[i].waitingTime,
+            processTable[i].turnTime);
+    }
+
+    float avgWaitingTime = 0;
+    float avgTurnaroundTime = 0;
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        avgWaitingTime += processTable[i].waitingTime;
+        avgTurnaroundTime += processTable[i].turnTime;
+    }
+    avgWaitingTime /= MAX_PROCESSES;
+    avgTurnaroundTime /= MAX_PROCESSES;
+
+    printf("Average Waiting Time: %.2f\n", avgWaitingTime);
+    printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
+
+    // Display PCBs
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+	    printf("Process ID: %d, Process PC: %d, Process ACC: %d, Process State: %d, Process Time: %d\n", processTable[i].pid, processTable[i].PC, processTable[i].ACC, processTable[i].state, processTable[i].timeRemaining);
+    }
+}
+
+bool complete_processes() {
+	for (int i = 0; i < MAX_PROCESSES; i++) {
+		if (processTable[i].state != 3) {
+			return false;
+		}
+	}
+	return true;
+}
+
 int main(){
     //this will do all of the load programming and other operations.
     initCache();
     loadProgram();
     initMemoryTable();
+    initProcesses();
 
     pthread_mutex_init(&memory_mutex, NULL);
     sem_init(&cache_semaphore, 0, 1);
     
+    while (1) {
+	    if (complete_processes()) {
+		    printf("All processes complete!\n");
+		    break;
+	    }
+	    if (interruptFlag) {
+		    printf("Interrupt detected in main loop.\n");
+		    while (interruptFlag) {
+		    }
+	    }
+	    // Scheduler Handling
+	    FCFS_Scheduler();
+    }
+
+    display_results();
+
     return 0;
 }
