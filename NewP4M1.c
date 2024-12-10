@@ -298,6 +298,7 @@ struct PCB processTable[MAX_PROCESSES];
 struct PCB* readyQueue[MAX_PROCESSES];
 int readyQueueHead = 0;
 int readyQueueTail = 1;
+int readyQueueSize = 0;
 
 
 // Instruction Codes
@@ -587,6 +588,7 @@ void firstProcessInQueue() {
 			first = &processTable[i];
 		}
 	}
+	readyQueueSize = 1;
 	first->inQueue = true;
 	readyQueue[0] = first;
 }
@@ -599,11 +601,79 @@ void checkForNewProcesses(int time) {
 		}
 		if (processTable[i].arrivalTime <= time) {
 			readyQueue[readyQueueTail] = process;
+			readyQueueSize += 1;
 			process->inQueue = true;
 			readyQueueTail = (readyQueueTail + 1) % MAX_PROCESSES;
 		}
 	}
 }
+
+void sortByPriority() {
+	for (int i = 0; i < MAX_PROCESSES; i++) {
+		readyQueue[i] = &processTable[i];
+		processTable[i].inQueue = true;
+	}
+    for (int i = 0; i < MAX_PROCESSES - 1; i++) {
+        for (int j = i + 1; j < MAX_PROCESSES; j++) {
+            if (readyQueue[i]->priority < readyQueue[j]->priority) {
+                struct PCB* temp = readyQueue[i];
+                readyQueue[i] = readyQueue[j];
+                readyQueue[j] = temp;
+            }
+            else if (readyQueue[i]->priority == readyQueue[j]->priority &&
+                     readyQueue[i]->arrivalTime > readyQueue[j]->arrivalTime) {
+                struct PCB* temp = readyQueue[i];
+                readyQueue[i] = readyQueue[j];
+                readyQueue[j] = temp;
+            }
+        }
+    }
+}
+
+void pickPriorityProcess(int currentTime) {
+	if (currentTime == 0) {
+		return;
+	}
+	for (int i = 0; i < MAX_PROCESSES; i++) {
+		if (readyQueue[i]->arrivalTime <= currentTime && (readyQueue[i]->state != TERMINATED && readyQueue[i]->state != BLOCKED)) {
+				readyQueueHead = i;
+				return;
+		}
+	}
+}
+
+void Priority_Scheduler() {
+    int currentTime = 0;
+    int completed = 0;
+    firstProcessInQueue();
+    while (completed < MAX_PROCESSES) {
+	    printf("%d\n", currentTime);
+	    sortByPriority();
+	    pickPriorityProcess(currentTime);
+        struct PCB* currentProcess = readyQueue[readyQueueHead];
+
+        if (currentTime < currentProcess->arrivalTime) {
+            currentTime = currentProcess->arrivalTime;
+            continue;
+        }
+
+	execute(currentProcess->pid);
+        currentProcess->timeRemaining -= 1;
+        currentTime += 1;
+
+        currentProcess->waitingTime = currentTime - currentProcess->arrivalTime - (currentProcess->burstTime - currentProcess->timeRemaining);
+        if (currentProcess->timeRemaining <= 0) {
+		currentProcess->state = TERMINATED;
+            currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
+            completed++;
+            printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
+                currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
+            readyQueueHead = (readyQueueHead + 1) % MAX_PROCESSES;
+        }
+	checkForNewProcesses(currentTime);
+    }
+}
+
 
 void RoundRobin_Scheduler(int timeQuantum) {
 	int currentTime = 0;
@@ -615,9 +685,6 @@ void RoundRobin_Scheduler(int timeQuantum) {
 		struct PCB* currentProcess = readyQueue[head];
 		if (currentTime < currentProcess->arrivalTime) {
 			currentTime = currentProcess->arrivalTime;
-		}
-		if (currentProcess->timeRemaining <= 0) {
-			continue;
 		}
 		execute(currentProcess->pid);		
 		int timeSlice = (currentProcess->timeRemaining < timeQuantum) ? currentProcess->timeRemaining : timeQuantum;
@@ -696,7 +763,7 @@ void display_results() {
 
     // Display PCBs
     for (int i = 0; i < MAX_PROCESSES; i++) {
-	    printf("Process ID: %d, Process PC: %d, Process ACC: %d, Process State: %d, Process Time: %d\n", processTable[i].pid, processTable[i].PC, processTable[i].ACC, processTable[i].state, processTable[i].timeRemaining);
+	    printf("Process ID: %d, Process PC: %d, Process ACC: %d, Process State: %d, Process Time: %d, Process Priority: %d\n", processTable[i].pid, processTable[i].PC, processTable[i].ACC, processTable[i].state, processTable[i].timeRemaining, processTable[i].priority);
     }
 }
 
@@ -731,6 +798,7 @@ int main(){
 	    }
 	    // Scheduler Handling
 	    int scheduler;
+	    printf("0: FCFS \n 1: Round Robin \n 2: Priority \n");
 	    printf("Select a scheduling method: ");
 	    scanf("%d", &scheduler);
 	    switch(scheduler) {
@@ -743,6 +811,8 @@ int main(){
 			    scanf("%d", &timeQuantum);
 			    RoundRobin_Scheduler(timeQuantum);
 			    break;
+		    case 2:
+			    Priority_Scheduler();
 		    default:
 			    printf("Invalid scheduler number.\n");
 			    break;
