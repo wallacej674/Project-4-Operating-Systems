@@ -283,6 +283,7 @@ int waitingTime;
 int turnTime;
 int timeRemaining;
 float responseRatio;
+bool inQueue;
 };
 
 #define FLAGGED 1
@@ -296,7 +297,7 @@ int errorFlag;
 struct PCB processTable[MAX_PROCESSES];
 struct PCB* readyQueue[MAX_PROCESSES];
 int readyQueueHead = 0;
-int readyQueueTail = 0;
+int readyQueueTail = 1;
 
 
 // Instruction Codes
@@ -312,9 +313,18 @@ int readyQueueTail = 0;
 #define JZ 10
 #define HALT 11
 
-void execute(int processNum){
+int getIndex(int processID) {
+	for (int i = 0; i < MAX_PROCESSES; i++) {
+		if (processTable[i].pid == processID) {
+			return i;
+		}
+	}
+}
+
+void execute(int processID){
     int prev;
     int result;
+    int processNum = getIndex(processID);
 
     //the fetch
     int instruction = accessMemory(processTable[processNum].PC, 1, false);
@@ -329,7 +339,6 @@ void execute(int processNum){
             result = processTable[processNum].ACC + operand;
             prev = processTable[processNum].ACC;
             processTable[processNum].ACC = result;
-            processTable[processNum].PC += 2;
             printf("PID %d: Operation Add, %d + %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
             processTable[processNum].PC += 2; //Move to the next instruction
             break;
@@ -551,18 +560,15 @@ void initProcesses(){
 		processTable[i].turnTime = 0;
 		processTable[i].timeRemaining = processTable[i].burstTime;
 		processTable[i].responseRatio = 0;
+		processTable[i].inQueue = false;
 	}
 }
 
-
-void FCFS_Scheduler() {
-    int currentTime = 0;
-
-    // Sort the Processes by their arrival times
+void sortProcessesByArrival() {
     for (int i = 0; i < MAX_PROCESSES; i++) {
         readyQueue[i] = &processTable[i];
+	processTable[i].inQueue = true;
     }
-
     for (int i = 0; i < MAX_PROCESSES - 1; i++) {
         for (int j = 0; j < MAX_PROCESSES - i - 1; j++) {
             if (readyQueue[j]->arrivalTime > readyQueue[j + 1]->arrivalTime) {
@@ -572,8 +578,76 @@ void FCFS_Scheduler() {
             }
         }
     }
+}
 
-    // Execute processes in arrival order
+void firstProcessInQueue() {
+	struct PCB* first = &processTable[0];
+	for (int i = 1; i < MAX_PROCESSES; i++) {
+		if (processTable[i].arrivalTime < first->arrivalTime) {
+			first = &processTable[i];
+		}
+	}
+	first->inQueue = true;
+	readyQueue[0] = first;
+}
+
+void checkForNewProcesses(int time) {
+	for (int i = 0; i < MAX_PROCESSES; i++) {
+		struct PCB* process = &processTable[i];
+		if (process->inQueue) {
+			continue;
+		}
+		if (processTable[i].arrivalTime <= time) {
+			readyQueue[readyQueueTail] = process;
+			process->inQueue = true;
+			readyQueueTail = (readyQueueTail + 1) % MAX_PROCESSES;
+		}
+	}
+}
+
+void RoundRobin_Scheduler(int timeQuantum) {
+	int currentTime = 0;
+	int completed = 0;
+	firstProcessInQueue();
+	while (completed < MAX_PROCESSES) {
+		int head = readyQueueHead;
+		int tail = readyQueueTail;
+		struct PCB* currentProcess = readyQueue[head];
+		if (currentTime < currentProcess->arrivalTime) {
+			currentTime = currentProcess->arrivalTime;
+		}
+		if (currentProcess->timeRemaining <= 0) {
+			continue;
+		}
+		execute(currentProcess->pid);		
+		int timeSlice = (currentProcess->timeRemaining < timeQuantum) ? currentProcess->timeRemaining : timeQuantum;
+		currentProcess->timeRemaining -= timeSlice;
+		currentTime += timeSlice;
+		currentProcess->waitingTime = currentTime - currentProcess->arrivalTime - (currentProcess->burstTime - currentProcess->timeRemaining);
+
+		if (currentProcess->timeRemaining <= 0) {
+			currentProcess->state = TERMINATED;
+			currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
+			completed++;
+			printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n", currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
+			readyQueueHead = (head + 1) % MAX_PROCESSES;
+		}
+		if (currentProcess->timeRemaining > 0) {
+			struct PCB* temp = readyQueue[head];
+			readyQueue[head] = NULL;
+			readyQueue[tail] = temp;
+			readyQueueHead = (head + 1) % MAX_PROCESSES;
+			readyQueueTail = (tail + 1) % MAX_PROCESSES;
+		}
+		checkForNewProcesses(currentTime);
+	}
+}
+
+
+void FCFS_Scheduler() {
+    int currentTime = 0;
+    sortProcessesByArrival();
+
     for (int i = 0; i < MAX_PROCESSES; i++) {
         if (currentTime < readyQueue[i]->arrivalTime) {
             currentTime = readyQueue[i]->arrivalTime;
@@ -582,7 +656,7 @@ void FCFS_Scheduler() {
         readyQueue[i]->state = RUNNING;
         readyQueue[i]->waitingTime = currentTime - readyQueue[i]->arrivalTime;
 
-	execute(i);
+	execute(processTable[i].pid);
         printf("P%d [%d - %d]\n", readyQueue[i]->pid, currentTime, currentTime + readyQueue[i]->burstTime);
         currentTime += readyQueue[i]->burstTime;
 
@@ -656,7 +730,23 @@ int main(){
 		    }
 	    }
 	    // Scheduler Handling
-	    FCFS_Scheduler();
+	    int scheduler;
+	    printf("Select a scheduling method: ");
+	    scanf("%d", &scheduler);
+	    switch(scheduler) {
+		    case 0:
+			    FCFS_Scheduler();
+			    break;
+		    case 1:
+			    int timeQuantum;
+			    printf("Insert Time Quantum for Round Robin: ");
+			    scanf("%d", &timeQuantum);
+			    RoundRobin_Scheduler(timeQuantum);
+			    break;
+		    default:
+			    printf("Invalid scheduler number.\n");
+			    break;
+	    }
     }
 
     display_results();
