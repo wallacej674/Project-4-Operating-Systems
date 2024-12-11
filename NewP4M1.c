@@ -642,6 +642,64 @@ void pickPriorityProcess(int currentTime) {
 	}
 }
 
+void sortByShortestBurstTime(int currentTime) {
+    int readyIndex = 0;
+
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (processTable[i].arrivalTime <= currentTime && processTable[i].state != TERMINATED) {
+            readyQueue[readyIndex++] = &processTable[i];
+        }
+    }
+
+    for (int i = 0; i < readyIndex - 1; i++) {
+        for (int j = i + 1; j < readyIndex; j++) {
+            if (readyQueue[i]->burstTime > readyQueue[j]->burstTime) {
+                struct PCB* temp = readyQueue[i];
+                readyQueue[i] = readyQueue[j];
+                readyQueue[j] = temp;
+            }
+            else if (readyQueue[i]->burstTime == readyQueue[j]->burstTime &&
+                     readyQueue[i]->arrivalTime > readyQueue[j]->arrivalTime) {
+                struct PCB* temp = readyQueue[i];
+                readyQueue[i] = readyQueue[j];
+                readyQueue[j] = temp;
+            }
+        }
+    }
+    readyQueueSize = readyIndex;
+}
+
+void SPN_Scheduler() {
+    int currentTime = 0;
+    int completed = 0;
+
+    while (completed < MAX_PROCESSES) {
+        sortByShortestBurstTime(currentTime);
+
+        if (readyQueueSize == 0) {
+            currentTime++;
+            continue;
+        }
+
+        struct PCB* currentProcess = readyQueue[0];
+
+        execute(currentProcess->pid);
+	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + currentProcess->burstTime);
+        currentTime += currentProcess->burstTime;
+
+        currentProcess->timeRemaining = 0;
+        currentProcess->state = TERMINATED;
+        currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
+        currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
+        completed++;
+
+        printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
+               currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
+    }
+}
+	
+
+
 void Priority_Scheduler() {
     int currentTime = 0;
     int completed = 0;
@@ -658,6 +716,7 @@ void Priority_Scheduler() {
         }
 
 	execute(currentProcess->pid);
+	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + currentProcess->burstTime);
         currentProcess->timeRemaining -= 1;
         currentTime += 1;
 
@@ -686,7 +745,8 @@ void RoundRobin_Scheduler(int timeQuantum) {
 		if (currentTime < currentProcess->arrivalTime) {
 			currentTime = currentProcess->arrivalTime;
 		}
-		execute(currentProcess->pid);		
+		execute(currentProcess->pid);
+		printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + currentProcess->burstTime);		
 		int timeSlice = (currentProcess->timeRemaining < timeQuantum) ? currentProcess->timeRemaining : timeQuantum;
 		currentProcess->timeRemaining -= timeSlice;
 		currentTime += timeSlice;
@@ -723,7 +783,7 @@ void FCFS_Scheduler() {
         readyQueue[i]->state = RUNNING;
         readyQueue[i]->waitingTime = currentTime - readyQueue[i]->arrivalTime;
 
-	execute(processTable[i].pid);
+	execute(readyQueue[i]->pid);
         printf("P%d [%d - %d]\n", readyQueue[i]->pid, currentTime, currentTime + readyQueue[i]->burstTime);
         currentTime += readyQueue[i]->burstTime;
 
@@ -798,7 +858,7 @@ int main(){
 	    }
 	    // Scheduler Handling
 	    int scheduler;
-	    printf("0: FCFS \n 1: Round Robin \n 2: Priority \n");
+	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n");
 	    printf("Select a scheduling method: ");
 	    scanf("%d", &scheduler);
 	    switch(scheduler) {
@@ -813,6 +873,10 @@ int main(){
 			    break;
 		    case 2:
 			    Priority_Scheduler();
+			    break;
+		    case 3:
+			    SPN_Scheduler();
+			    break;
 		    default:
 			    printf("Invalid scheduler number.\n");
 			    break;
