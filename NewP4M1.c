@@ -599,7 +599,7 @@ void checkForNewProcesses(int time) {
 		if (process->inQueue) {
 			continue;
 		}
-		if (processTable[i].arrivalTime <= time) {
+		if (process->arrivalTime <= time) {
 			readyQueue[readyQueueTail] = process;
 			readyQueueSize += 1;
 			process->inQueue = true;
@@ -668,6 +668,53 @@ void sortByShortestBurstTime(int currentTime) {
     }
     readyQueueSize = readyIndex;
 }
+
+void HRRN_Scheduler() {
+    int currentTime = 0;
+    int completed = 0;
+
+    while (completed < MAX_PROCESSES) {
+        struct PCB* selectedProcess = NULL;
+        float highestResponseRatio = 0.0;
+	checkForNewProcesses(currentTime);
+
+        for (int i = 0; i < MAX_PROCESSES; i++) {
+            struct PCB* process = readyQueue[i];
+	    if (!process) {
+		    continue;
+	    }
+
+            if (process->state != TERMINATED && process->state != BLOCKED && process->arrivalTime <= currentTime) {
+                int waitingTime = currentTime - process->arrivalTime;
+                float responseRatio = (float)(waitingTime + process->burstTime) / process->burstTime;
+		process->responseRatio = responseRatio;
+                if (responseRatio > highestResponseRatio) {
+                    highestResponseRatio = responseRatio;
+                    selectedProcess = process;
+                }
+            }
+        }
+
+        if (!selectedProcess) {
+            currentTime++;
+            continue;
+        }
+
+        printf("Process %d selected with response ratio %.2f at time %d\n",
+               selectedProcess->pid, highestResponseRatio, currentTime);
+        execute(selectedProcess->pid);
+        currentTime += selectedProcess->burstTime;
+
+        selectedProcess->state = TERMINATED;
+        selectedProcess->turnTime = currentTime - selectedProcess->arrivalTime;
+        selectedProcess->waitingTime = selectedProcess->turnTime - selectedProcess->burstTime;
+        completed++;
+
+        printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
+               selectedProcess->pid, selectedProcess->waitingTime, selectedProcess->turnTime);
+    }
+}
+
 
 void SRT_Scheduler() {
     int currentTime = 0;
@@ -742,8 +789,7 @@ void SPN_Scheduler() {
         printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
                currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
     }
-}
-	
+}	
 
 
 void Priority_Scheduler() {
@@ -869,7 +915,7 @@ void display_results() {
 
     // Display PCBs
     for (int i = 0; i < MAX_PROCESSES; i++) {
-	    printf("Process ID: %d, Process PC: %d, Process ACC: %d, Process State: %d, Process Time: %d, Process Priority: %d\n", processTable[i].pid, processTable[i].PC, processTable[i].ACC, processTable[i].state, processTable[i].timeRemaining, processTable[i].priority);
+	    printf("Process ID: %d, Process PC: %d, Process ACC: %d, Process State: %d, Process Time: %d, Process Priority: %d, Process Response Ratio: %f\n", processTable[i].pid, processTable[i].PC, processTable[i].ACC, processTable[i].state, processTable[i].timeRemaining, processTable[i].priority, processTable[i].responseRatio);
     }
 }
 
@@ -904,7 +950,7 @@ int main(){
 	    }
 	    // Scheduler Handling
 	    int scheduler;
-	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n 4: Shortest Remaining Time (SRT) \n ");
+	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n 4: Shortest Remaining Time (SRT) \n 5: Highest Response Ratio Next (HRRN) \n ");
 	    printf("Select a scheduling method: ");
 	    scanf("%d", &scheduler);
 	    switch(scheduler) {
@@ -925,6 +971,9 @@ int main(){
 			    break;
 		    case 4:
 			    SRT_Scheduler();
+			    break;
+		    case 5:
+			    HRRN_Scheduler();
 			    break;
 		    default:
 			    printf("Invalid scheduler number.\n");
