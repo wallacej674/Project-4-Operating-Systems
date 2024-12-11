@@ -669,6 +669,52 @@ void sortByShortestBurstTime(int currentTime) {
     readyQueueSize = readyIndex;
 }
 
+void SRT_Scheduler() {
+    int currentTime = 0;
+    int completed = 0;
+    struct PCB* currentProcess = NULL;
+
+    while (completed < MAX_PROCESSES) {
+        struct PCB* shortestProcess = NULL;
+
+        for (int i = 0; i < MAX_PROCESSES; i++) {
+            if (processTable[i].state != TERMINATED && processTable[i].state != BLOCKED && processTable[i].arrivalTime <= currentTime) {
+                if (!shortestProcess || processTable[i].timeRemaining < shortestProcess->timeRemaining) {
+                    shortestProcess = &processTable[i];
+                }
+            }
+        }
+
+        if (!shortestProcess) {
+            currentTime++;
+            continue;
+        }
+
+        if (currentProcess != shortestProcess) {
+            currentProcess = shortestProcess;
+            printf("New shortest process %d changed at time %d\n", currentProcess->pid, currentTime);
+        }
+
+        execute(currentProcess->pid);
+	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + 1);
+        currentProcess->timeRemaining--;
+        currentTime++;
+
+        if (currentProcess->timeRemaining == 0) {
+            currentProcess->state = TERMINATED;
+            currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
+            currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
+            completed++;
+
+            printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
+                   currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
+
+            currentProcess = NULL;
+        }
+    }
+}
+
+
 void SPN_Scheduler() {
     int currentTime = 0;
     int completed = 0;
@@ -858,7 +904,7 @@ int main(){
 	    }
 	    // Scheduler Handling
 	    int scheduler;
-	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n");
+	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n 4: Shortest Remaining Time (SRT) \n ");
 	    printf("Select a scheduling method: ");
 	    scanf("%d", &scheduler);
 	    switch(scheduler) {
@@ -876,6 +922,9 @@ int main(){
 			    break;
 		    case 3:
 			    SPN_Scheduler();
+			    break;
+		    case 4:
+			    SRT_Scheduler();
 			    break;
 		    default:
 			    printf("Invalid scheduler number.\n");
