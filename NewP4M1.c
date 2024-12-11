@@ -300,6 +300,21 @@ int readyQueueHead = 0;
 int readyQueueTail = 1;
 int readyQueueSize = 0;
 
+// Vars for Feedback
+struct PCB* queueHigh[MAX_PROCESSES];
+struct PCB* queueMedium[MAX_PROCESSES];
+struct PCB* queueLow[MAX_PROCESSES];
+
+int highQuantum = 2;
+int mediumQuantum = 4;
+int lowQuantum = 6;
+
+int highHead = 0;
+int highTail = 0;
+int mediumHead = 0;
+int mediumTail = 0;
+int lowHead = 0;
+int lowTail = 0;
 
 // Instruction Codes
 #define ADD 1
@@ -593,17 +608,23 @@ void firstProcessInQueue() {
 	readyQueue[0] = first;
 }
 
-void checkForNewProcesses(int time) {
+void checkForNewProcesses(int time, bool feedback) {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		struct PCB* process = &processTable[i];
 		if (process->inQueue) {
 			continue;
 		}
 		if (process->arrivalTime <= time) {
-			readyQueue[readyQueueTail] = process;
-			readyQueueSize += 1;
-			process->inQueue = true;
-			readyQueueTail = (readyQueueTail + 1) % MAX_PROCESSES;
+			if (feedback) {
+				queueHigh[highTail] = process;
+				highTail = (highTail + 1) % MAX_PROCESSES;
+				process->inQueue = true;
+			} else {
+				readyQueue[readyQueueTail] = process;
+				readyQueueSize += 1;
+				process->inQueue = true;
+				readyQueueTail = (readyQueueTail + 1) % MAX_PROCESSES;
+			}
 		}
 	}
 }
@@ -669,6 +690,137 @@ void sortByShortestBurstTime(int currentTime) {
     readyQueueSize = readyIndex;
 }
 
+bool complete_processes() {
+        for (int i = 0; i < MAX_PROCESSES; i++) {
+                if (processTable[i].state != TERMINATED) {
+                        return false;
+                }
+        }
+        return true;
+}
+
+void processHighQueue(int *currentTime) {
+	while (queueHigh[highHead] != NULL) {
+		struct PCB* currentProcess = queueHigh[highHead];
+		int executeTime = (currentProcess->timeRemaining > highQuantum) ? highQuantum : currentProcess->timeRemaining;
+		currentProcess->state = RUNNING;
+		execute(currentProcess->pid);
+		printf("High: P%d [%d - %d]\n", currentProcess->pid, *currentTime, *currentTime + executeTime);
+		*currentTime += executeTime;
+		currentProcess->timeRemaining -= executeTime;
+		if (currentProcess->timeRemaining <= 0) {
+			currentProcess->state = TERMINATED;
+	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
+	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
+	    		printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n", currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
+		} else {
+	    		currentProcess->state = READY;
+	     		queueMedium[mediumTail] = currentProcess;
+			mediumTail = (mediumTail + 1) % MAX_PROCESSES;
+	    		printf("Process %d moved to Medium Queue\n", currentProcess->pid);
+	 	}
+		queueHigh[highHead] = NULL;
+		highHead = (highHead + 1) % MAX_PROCESSES;
+    	}
+}
+
+void processMediumQueue(int *currentTime) {
+	while (queueMedium[mediumHead] != NULL) {
+		struct PCB *currentProcess = queueMedium[mediumHead];
+		int executeTime = (currentProcess->timeRemaining > mediumQuantum) ? mediumQuantum : currentProcess->timeRemaining;
+		currentProcess->state = RUNNING;
+		execute(currentProcess->pid);
+		printf("Medium: P%d [%d - %d]\n", currentProcess->pid, *currentTime, *currentTime + executeTime);
+		*currentTime += executeTime;
+	       	currentProcess->timeRemaining -= executeTime;
+		if (currentProcess->timeRemaining <= 0) {
+	    		currentProcess->state = TERMINATED;
+	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
+	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
+		} else if (currentProcess->timeRemaining <= highQuantum) {
+			currentProcess->state = READY;
+			queueHigh[highTail] = currentProcess;
+			highTail = (highTail + 1) % MAX_PROCESSES;
+			queueMedium[mediumHead] = NULL;
+			mediumHead = (mediumHead + 1) % MAX_PROCESSES;
+			return;
+		} else if (currentProcess->timeRemaining <= mediumQuantum) {
+			currentProcess->state = READY;
+			queueMedium[mediumTail] = currentProcess;
+			mediumTail = (mediumTail + 1) % MAX_PROCESSES;
+		} else {
+			currentProcess->state = READY;
+			queueLow[lowTail] = currentProcess;
+			lowTail = (lowTail + 1) % MAX_PROCESSES;
+		}
+		queueMedium[mediumHead] = NULL;
+		mediumHead = (mediumHead + 1) % MAX_PROCESSES;
+	}
+}
+
+void processLowQueue(int *currentTime) {                          
+   	while (queueLow[lowHead] != NULL) {                                       
+      		struct PCB *currentProcess = queueLow[lowHead];     
+		int executeTime = (currentProcess->timeRemaining > lowQuantum) ? lowQuantum : currentProcess->timeRemaining;
+		currentProcess->state = RUNNING;
+                execute(currentProcess->pid);
+		printf("Low: P%d [%d - %d]\n", currentProcess->pid, *currentTime, *currentTime + executeTime);
+                *currentTime += executeTime;
+                currentProcess->timeRemaining -= executeTime;
+                if (currentProcess->timeRemaining <= 0) {
+                        currentProcess->state = TERMINATED;
+                        currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
+                        currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;                                                                             } else if (currentProcess->timeRemaining <= highQuantum) {
+                        currentProcess->state = READY;                                                      queueHigh[highTail] = currentProcess;
+                        highTail = (highTail + 1) % MAX_PROCESSES;
+		        queueLow[lowHead] = NULL;	
+			lowHead = (lowHead + 1) % MAX_PROCESSES;
+                        return;
+                } else if (currentProcess->timeRemaining <= mediumQuantum) {
+                        currentProcess->state = READY;
+                        queueMedium[mediumTail] = currentProcess;
+                        mediumTail = (mediumTail + 1) % MAX_PROCESSES;
+			queueLow[lowHead] = NULL;
+			lowHead = (lowHead + 1) % MAX_PROCESSES;
+			return;
+                } else {
+                        currentProcess->state = READY;
+                        queueLow[lowTail] = currentProcess;
+                        lowTail = (lowTail + 1) % MAX_PROCESSES;
+		}
+		queueLow[lowHead] = NULL;
+		lowHead = (lowHead + 1) % MAX_PROCESSES;
+	}
+}
+
+
+void Feedback_Scheduler() {
+	int currentTime = 0;
+	while (!complete_processes()) {
+		checkForNewProcesses(currentTime, true);
+
+		if (queueHigh[highHead] == NULL && queueMedium[mediumHead] == NULL && queueLow[lowHead] == NULL) {
+			currentTime++;
+			continue;
+		}
+		processHighQueue(&currentTime);
+		checkForNewProcesses(currentTime, true);
+		if (queueHigh[highHead] != NULL) {
+			continue;
+		}
+		processMediumQueue(&currentTime);
+		checkForNewProcesses(currentTime, true);
+		if (queueHigh[highHead] != NULL) {
+			continue;
+		}
+		processLowQueue(&currentTime);
+		checkForNewProcesses(currentTime, true);
+		if (queueHigh[highHead] != NULL || queueMedium[mediumHead] != NULL) {
+			continue;
+		}
+	}
+}
+
 void HRRN_Scheduler() {
     int currentTime = 0;
     int completed = 0;
@@ -676,7 +828,7 @@ void HRRN_Scheduler() {
     while (completed < MAX_PROCESSES) {
         struct PCB* selectedProcess = NULL;
         float highestResponseRatio = 0.0;
-	checkForNewProcesses(currentTime);
+	checkForNewProcesses(currentTime, false);
 
         for (int i = 0; i < MAX_PROCESSES; i++) {
             struct PCB* process = readyQueue[i];
@@ -821,7 +973,7 @@ void Priority_Scheduler() {
                 currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
             readyQueueHead = (readyQueueHead + 1) % MAX_PROCESSES;
         }
-	checkForNewProcesses(currentTime);
+	checkForNewProcesses(currentTime, false);
     }
 }
 
@@ -858,7 +1010,7 @@ void RoundRobin_Scheduler(int timeQuantum) {
 			readyQueueHead = (head + 1) % MAX_PROCESSES;
 			readyQueueTail = (tail + 1) % MAX_PROCESSES;
 		}
-		checkForNewProcesses(currentTime);
+		checkForNewProcesses(currentTime, false);
 	}
 }
 
@@ -887,7 +1039,6 @@ void FCFS_Scheduler() {
     printf("\n\n");
 }
 
-// Function to display the process table after scheduling
 void display_results() {
     printf("\nProcess Table:\n");
     printf("PID\tArrival\tBurst\tWaiting\tTurnaround\n");
@@ -913,19 +1064,9 @@ void display_results() {
     printf("Average Waiting Time: %.2f\n", avgWaitingTime);
     printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
 
-    // Display PCBs
     for (int i = 0; i < MAX_PROCESSES; i++) {
 	    printf("Process ID: %d, Process PC: %d, Process ACC: %d, Process State: %d, Process Time: %d, Process Priority: %d, Process Response Ratio: %f\n", processTable[i].pid, processTable[i].PC, processTable[i].ACC, processTable[i].state, processTable[i].timeRemaining, processTable[i].priority, processTable[i].responseRatio);
     }
-}
-
-bool complete_processes() {
-	for (int i = 0; i < MAX_PROCESSES; i++) {
-		if (processTable[i].state != 3) {
-			return false;
-		}
-	}
-	return true;
 }
 
 int main(){
@@ -950,7 +1091,7 @@ int main(){
 	    }
 	    // Scheduler Handling
 	    int scheduler;
-	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n 4: Shortest Remaining Time (SRT) \n 5: Highest Response Ratio Next (HRRN) \n ");
+	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n 4: Shortest Remaining Time (SRT) \n 5: Highest Response Ratio Next (HRRN) \n 6: Feedback \n");
 	    printf("Select a scheduling method: ");
 	    scanf("%d", &scheduler);
 	    switch(scheduler) {
@@ -974,6 +1115,9 @@ int main(){
 			    break;
 		    case 5:
 			    HRRN_Scheduler();
+			    break;
+		    case 6:
+			    Feedback_Scheduler();
 			    break;
 		    default:
 			    printf("Invalid scheduler number.\n");
