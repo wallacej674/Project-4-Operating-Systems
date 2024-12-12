@@ -329,6 +329,16 @@ int lowTail = 0;
 #define JZ 10
 #define HALT 11
 
+struct Metrics {
+	clock_t exec_time;
+	int context_switches;
+	double avg_waiting_time;
+	double avg_turn_time;
+	double cpu_utilization;
+};
+#define MAX_ALGORITHMS 7
+struct Metrics metrics_table[MAX_ALGORITHMS];
+
 int getIndex(int processID) {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		if (processTable[i].pid == processID) {
@@ -448,7 +458,7 @@ void execute(int processID){
             }
 		default:
 			// Handle undefined/invalid opcodes
-			printf("PID %d Operation: Invalid opcode given. Please try again.\n", processTable[processNum].pid);
+			printf("PID: %d Operation: Invalid opcode given. Please try again.\n", processTable[processNum].pid);
             errorFlag = 1;
 			break;
         }
@@ -1043,7 +1053,7 @@ void FCFS_Scheduler() {
     printf("\n\n");
 }
 
-void display_results() {
+void display_results(int schedulerIndex) {
     printf("\nProcess Table:\n");
     printf("PID\tArrival\tBurst\tWaiting\tTurnaround\n");
 
@@ -1068,68 +1078,95 @@ void display_results() {
     printf("Average Waiting Time: %.2f\n", avgWaitingTime);
     printf("Average Turnaround Time: %.2f\n", avgTurnaroundTime);
 
+    metrics_table[schedulerIndex].avg_waiting_time = avgWaitingTime;
+    metrics_table[schedulerIndex].avg_turn_time = avgTurnaroundTime;
+
     for (int i = 0; i < MAX_PROCESSES; i++) {
 	    printf("Process ID: %d, Process PC: %d, Process ACC: %d, Process State: %d, Process Time: %d, Process Priority: %d, Process Response Ratio: %f\n", processTable[i].pid, processTable[i].PC, processTable[i].ACC, processTable[i].state, processTable[i].timeRemaining, processTable[i].priority, processTable[i].responseRatio);
     }
 }
 
-int main(){
-    //this will do all of the load programming and other operations.
-    initCache();
-    loadProgram();
-    initMemoryTable();
-    initProcesses();
+char *string[] = {"FCFS", "Round Robin", "Priority", "SPN", "SRT", "HRRN", "Feedback"};
 
-    pthread_mutex_init(&memory_mutex, NULL);
-    sem_init(&cache_semaphore, 0, 1);
-    
+void display_metrics() {
+	for (int i = 0; i < MAX_ALGORITHMS; i++) {
+		printf("%s: \n", string[i]);
+		printf("\tExecution Time: %ld \n", metrics_table[i].exec_time);
+		printf("\tContext Switches: %d \n", metrics_table[i].context_switches);
+		printf("\tAverage Waiting Time: %lf \n", metrics_table[i].avg_waiting_time);
+		printf("\tAverage Turnaround Time: %lf \n", metrics_table[i].avg_turn_time);
+		printf("\tCPU Utilization: %lf \n", metrics_table[i].cpu_utilization);
+	}
+}
+
+int main(){
     while (1) {
-	    if (complete_processes()) {
-		    printf("All processes complete!\n");
-		    break;
-	    }
-	    if (interruptFlag) {
-		    printf("Interrupt detected in main loop.\n");
-		    while (interruptFlag) {
-		    }
-	    }
-	    // Scheduler Handling
+	    initCache();
+	    loadProgram();
+	    initMemoryTable();
+	    initProcesses();
+	    
+	    pthread_mutex_init(&memory_mutex, NULL);
+	    sem_init(&cache_semaphore, 0, 1);
+	    bool quit = false;
 	    int scheduler;
-	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n 4: Shortest Remaining Time (SRT) \n 5: Highest Response Ratio Next (HRRN) \n 6: Feedback \n");
+	    printf("\n 0: FCFS \n 1: Round Robin \n 2: Priority \n 3: Shortest Process Next (SPN) \n 4: Shortest Remaining Time (SRT) \n 5: Highest Response Ratio Next (HRRN) \n 6: Feedback \n 7: QUIT \n ");
 	    printf("Select a scheduling method: ");
 	    scanf("%d", &scheduler);
+	    clock_t start_time = clock();
+	    clock_t end_time;
 	    switch(scheduler) {
 		    case 0:
 			    FCFS_Scheduler();
+			    end_time = clock();
+			    metrics_table[0].exec_time = end_time - start_time;
 			    break;
 		    case 1:
 			    int timeQuantum;
 			    printf("Insert Time Quantum for Round Robin: ");
 			    scanf("%d", &timeQuantum);
 			    RoundRobin_Scheduler(timeQuantum);
+			    end_time = clock();
+                            metrics_table[1].exec_time = end_time - start_time;
 			    break;
 		    case 2:
 			    Priority_Scheduler();
+			    end_time = clock();
+                            metrics_table[2].exec_time = end_time - start_time;
 			    break;
 		    case 3:
 			    SPN_Scheduler();
+			    end_time = clock();
+                            metrics_table[3].exec_time = end_time - start_time;
 			    break;
 		    case 4:
 			    SRT_Scheduler();
+			    end_time = clock();
+                            metrics_table[4].exec_time = end_time - start_time;
 			    break;
 		    case 5:
 			    HRRN_Scheduler();
+			    end_time = clock();
+                            metrics_table[5].exec_time = end_time - start_time;
 			    break;
 		    case 6:
 			    Feedback_Scheduler();
+			    end_time = clock();
+                            metrics_table[6].exec_time = end_time - start_time;
+			    break;
+		    case 7:
+			    printf("User is quitting simulation!\n");
+			    quit = true;
 			    break;
 		    default:
 			    printf("Invalid scheduler number.\n");
 			    break;
 	    }
+	    if (quit) {
+		    break;
+	    }
+	    display_results(scheduler);
     }
-
-    display_results();
-
+    display_metrics();
     return 0;
 }
