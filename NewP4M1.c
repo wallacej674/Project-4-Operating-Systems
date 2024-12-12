@@ -9,6 +9,10 @@
 #include <string.h>
 #include <semaphore.h>
 
+//the global variables for the CPU
+int PC;
+int ACC;
+int IR;
 
 //the signals used
 //Mutexes and semaphores for safe access
@@ -359,52 +363,63 @@ int getIndex(int processID) {
 		}
 	}
 }
+
+
+// int, int, int, -> void()
+//this will mutate the PCB with the proper values of the ACC, IR, and PC
+void updatePCB(int index, int PC, int ACC){
+    processTable[index].PC = PC;
+    processTable[index].ACC = ACC;
+}
 // int -> void
 // Purpose: execute an instruction in the given process
 void execute(int processID){
     int prev;
     int result;
     int processNum = getIndex(processID);
-
-    //the fetch
-    int instruction = accessMemory(processTable[processNum].PC, 1, false);
+    //mutating the global variables so that there is a fetch decode and execute properly established.
+    PC = processTable[processNum].PC;
+    ACC = processTable[processNum].ACC;
+    IR = accessMemory(processTable[processNum].PC, 1, false);
 
     //the decode
-    int opcode = instruction;
+    int opcode = IR;
     int operand = accessMemory(processTable[processNum].PC + 1, 1, false);
 
     //everything else below is the execute
     switch (opcode) {
         case ADD: 
-            result = processTable[processNum].ACC + operand;
-            prev = processTable[processNum].ACC;
-            processTable[processNum].ACC = result;
-            printf("PID %d: Operation Add, %d + %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
-            processTable[processNum].PC += 2; //Move to the next instruction
+            result = ACC + operand;
+            prev = ACC;
+            ACC = result;
+            printf("PID %d: Operation Add, %d + %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
+            PC += 2; //Move to the next instruction
+            updatePCB(processNum, PC, ACC);
             break;
         case SUB:
-            result  = processTable[processNum].ACC - operand;
-            prev = processTable[processNum].ACC;
-            processTable[processNum].ACC = result;
-            processTable[processNum].PC += 2;
-            printf("PID %d Operation: Subtracting: %d - %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
-            processTable[processNum].PC += 2; //Move to the next instruction
+            result  = ACC - operand;
+            prev = ACC;
+            ACC = result;
+            printf("PID %d Operation: Subtracting: %d - %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
+            PC += 2; //Move to the next instruction
+            updatePCB(processNum, PC, ACC);
             break;
         case MUL:
-            prev = processTable[processNum].ACC;
-            result = processTable[processNum].ACC * operand;
-            processTable[processNum].ACC = result;
-            printf("PID %d Operation Multiplying: %d * %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
-            processTable[processNum].PC += 2; //Move to the next instruction
-
+            prev = ACC;
+            result = ACC * operand;
+            ACC = result;
+            printf("PID %d Operation Multiplying: %d * %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
+            PC += 2; //Move to the next instruction
+            updatePCB(processNum, PC, ACC);
             break;
         case DIV:
             if(operand != 0){
-                prev = processTable[processNum].ACC;
-                result = processTable[processNum].ACC / operand;
-                processTable[processNum].ACC = result;
-                printf("PID %d Operation: Dividing: %d / %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
-                processTable[processNum].PC += 2; //Move to the next instruction
+                prev = ACC;
+                result = ACC / operand;
+                ACC = result;
+                printf("PID %d Operation: Dividing: %d / %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
+                PC += 2; //Move to the next instruction
+                updatePCB(processNum, PC, ACC);
                 break;
             }
             else{
@@ -413,36 +428,41 @@ void execute(int processID){
                 break;
             }
         case LOAD:
-            prev = processTable[processNum].ACC;
-            processTable[processNum].ACC = operand;
-			printf("PID %d Operation: Loading data in ACC: %d -> %d\n",processTable[processNum].pid , prev, processTable[processNum].ACC);
-            processTable[processNum].PC += 2; //Move to the next instruction
+            prev = ACC;
+            ACC = operand;
+			printf("PID %d Operation: Loading data in ACC: %d -> %d\n",processTable[processNum].pid , prev, ACC);
+            PC += 2; //Move to the next instruction
+            updatePCB(processNum, PC, ACC);
 			break;
         case STORE:
-            accessMemory(operand, processTable[processNum].ACC, true);
-            printf("PID %d Operation: Storing data into memory from ACC to Adress: %d -> %d\n", processTable[processNum].pid, processTable[processNum].ACC, operand);
-            processTable[processNum].PC += 2; //Move to the next instruction
+            accessMemory(operand, ACC, true);
+            printf("PID %d Operation: Storing data into memory from ACC to Adress: %d -> %d\n", processTable[processNum].pid, ACC, operand);
+            PC += 2; //Move to the next instruction
+            updatePCB(processNum, PC, ACC);
 			break;
         case AND:
-            prev = processTable[processNum].ACC;
-            result = processTable[processNum].ACC & operand;
-            processTable[processNum].ACC = result;
-			printf("PID %d Operation: AND operation: %d & %d = %d \n", processTable[processNum].pid,  prev, operand, processTable[processNum].ACC);
-            processTable[processNum].PC += 2; //Move to the next instruction
+            prev = ACC;
+            result = ACC & operand;
+            ACC = result;
+			printf("PID %d Operation: AND operation: %d & %d = %d \n", processTable[processNum].pid,  prev, operand, ACC);
+            PC += 2; //Move to the next instruction
+            updatePCB(processNum, PC, ACC);
             break;
         case OR:
-            prev = processTable[processNum].ACC;
-            result = processTable[processNum].ACC | operand;
-            processTable[processNum].ACC = result;
-            printf("PID %d Operation: OR operation: %d | %d = %d \n", processTable[processNum].pid , prev, operand, processTable[processNum].ACC);
-            processTable[processNum].PC += 2; //Move to the next instruction
+            prev = ACC;
+            result = ACC | operand;
+            ACC = result;
+            printf("PID %d Operation: OR operation: %d | %d = %d \n", processTable[processNum].pid , prev, operand, ACC);
+            PC += 2; //Move to the next instruction
+            updatePCB(processNum, PC, ACC);
             break;
         case JMP:
             if (operand >= 0  && operand < RAM_SIZE){
-                prev = processTable[processNum].PC;
-                processTable[processNum].PC = operand - 2;
-                printf("PID %d Operation: Jump: PC has been changed from %d to %d\n",processTable[processNum].pid ,  prev, processTable[processNum].PC);
-                processTable[processNum].PC += 2; //Move to the next instruction
+                prev = PC;
+                PC = operand - 2;
+                printf("PID %d Operation: Jump: PC has been changed from %d to %d\n",processTable[processNum].pid ,  prev, PC);
+                PC += 2; //Move to the next instruction
+                updatePCB(processNum, PC, ACC);
                 break;
             }
             else{
@@ -453,10 +473,11 @@ void execute(int processID){
         case JZ:
             if(zeroFlag == 1){
                 if(operand >= 0  && operand < RAM_SIZE){
-                    prev = processTable[processNum].PC;
-                    processTable[processNum].PC = operand - 2;
-                    printf("PID %d Operation: Jump Zero: PC has been changed from %d to %d\n", processTable[processNum].pid, prev, processTable[processNum].PC);
-                    processTable[processNum].PC += 2; //Move to the next instruction
+                    prev = PC;
+                    PC = operand - 2;
+                    printf("PID %d Operation: Jump Zero: PC has been changed from %d to %d\n", processTable[processNum].pid, prev, PC);
+                    PC += 2; //Move to the next instruction
+                    updatePCB(processNum, PC, ACC);
                     break;
                     }
                     else{
@@ -588,12 +609,20 @@ void initCache(){
 // -> void
 // Purpose: initialize the process table
 void initProcesses(){
+	int arrivalTimeRange;
+	int burstTimeRange;
+	printf("Set a max for arrival time range: ");
+	scanf("%d", &arrivalTimeRange);
+	printf("Set a max for burst time range: ");
+	scanf("%d", &burstTimeRange);
 	for(int i = 0; i < MAX_PROCESSES; i++){
 		processTable[i].pid = i + 100;
 		processTable[i].PC = 0;
 		processTable[i].ACC = 0;
 		processTable[i].state = READY;
 		processTable[i].priority = (rand() % 6) + 1;
+		processTable[i].arrivalTime = (rand() % arrivalTimeRange) + 1;
+		processTable[i].burstTime = (rand() % burstTimeRange) + 1;
 		processTable[i].waitingTime = 0;
 		processTable[i].turnTime = 0;
 		processTable[i].timeRemaining = processTable[i].burstTime;
@@ -1155,25 +1184,9 @@ void display_metrics() {
 	}
 }
 
-// -> void
-// Purpose: initialize the arrival and burst times.
-void initAB() {
-	int arrivalTimeRange;
-	int burstTimeRange;
-	printf("Set a max for arrival time range: ");
-	scanf("%d", &arrivalTimeRange);
-	printf("Set a max for burst time range: ");
-	scanf("%d", &burstTimeRange);
-	for (int i = 0; i < MAX_PROCESSES; i++) {
-		processTable[i].arrivalTime = (rand() % arrivalTimeRange) + 1;
-		processTable[i].burstTime = (rand() % burstTimeRange) + 1;
-	}
-}
-
 // -> int
 // Purpose: main, initializes the simulator and lets the user select scheduler algorithms
 int main(){
-	initAB();
     while (1) {
 	    initCache();
 	    loadProgram();
