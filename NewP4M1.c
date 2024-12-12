@@ -1027,7 +1027,11 @@ void FCFS_Scheduler() {
         readyQueue[i]->state = RUNNING;
         readyQueue[i]->waitingTime = currentTime - readyQueue[i]->arrivalTime;
 
+	int runTime = readyQueue[i]->burstTime;
+    while(runTime > 0){
 	execute(readyQueue[i]->pid);
+    runTime--;
+    }
         printf("P%d [%d - %d]\n", readyQueue[i]->pid, currentTime, currentTime + readyQueue[i]->burstTime);
         currentTime += readyQueue[i]->burstTime;
 
