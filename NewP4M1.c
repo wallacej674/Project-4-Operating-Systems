@@ -211,6 +211,10 @@ void updateCache(int address, int value, bool inRam){
     }
 }
 
+// Cache hits and misses count
+int cacheHits;
+int cacheMisses;
+
 //handle cache lookup
 int cacheLookup(int address) {
     //do: Implement L1 and L2 cache lookup logic
@@ -220,6 +224,7 @@ int cacheLookup(int address) {
     for(int i = 0; i < L1_CACHE_SIZE; i++){
         if(address == L1Tags[i].address){
             printf("L1 Cache hit value: %d \n", L1Cache[i]);
+	    cacheHits += 1;
             return L1Cache[i];
         }
     }
@@ -228,12 +233,14 @@ int cacheLookup(int address) {
     for (int i = 0; i < L2_CACHE_SIZE; i++){
         if(address == L2Tags[i].address){
             printf("L2 Cache hit value:%d \n", L2Cache[i]);
+	    cacheHits += 1;
             return L2Cache[i];
         }
     }
 
     // so that the cache updates cache and RAM address
     int value = RAM[address];
+    cacheMisses += 1;
     updateCache(address,value,true);
     return value;
 }
@@ -335,6 +342,7 @@ struct Metrics {
 	double avg_waiting_time;
 	double avg_turn_time;
 	double cpu_utilization;
+	double cacheEfficiency;
 };
 #define MAX_ALGORITHMS 7
 struct Metrics metrics_table[MAX_ALGORITHMS];
@@ -644,7 +652,6 @@ void checkForNewProcesses(int time, bool feedback) {
 void sortByPriority() {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		readyQueue[i] = &processTable[i];
-		processTable[i].inQueue = true;
 	}
     for (int i = 0; i < MAX_PROCESSES - 1; i++) {
         for (int j = i + 1; j < MAX_PROCESSES; j++) {
@@ -670,6 +677,7 @@ void pickPriorityProcess(int currentTime) {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		if (readyQueue[i]->arrivalTime <= currentTime && (readyQueue[i]->state != TERMINATED && readyQueue[i]->state != BLOCKED)) {
 				readyQueueHead = i;
+				readyQueue[i]->inQueue = true;
 				return;
 		}
 	}
@@ -971,24 +979,23 @@ void Priority_Scheduler() {
     int completed = 0;
     firstProcessInQueue();
     while (completed < MAX_PROCESSES) {
-	    printf("%d\n", currentTime);
 	    sortByPriority();
 	    pickPriorityProcess(currentTime);
         struct PCB* currentProcess = readyQueue[readyQueueHead];
 
         if (currentTime < currentProcess->arrivalTime) {
-            currentTime = currentProcess->arrivalTime;
-            continue;
-        }
+		currentTime++;
+		continue;
+	}
 
 	execute(currentProcess->pid);
-	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + currentProcess->burstTime);
+	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + 1);
         currentProcess->timeRemaining -= 1;
         currentTime += 1;
-        currentProcess->waitingTime = currentTime - currentProcess->arrivalTime - (currentProcess->burstTime - currentProcess->timeRemaining);
         if (currentProcess->timeRemaining <= 0) {
 		currentProcess->state = TERMINATED;
 		currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
+		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
             completed++;
             printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
                 currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
@@ -1108,6 +1115,7 @@ void display_metrics() {
 		printf("\tAverage Turnaround Time: %lf \n", metrics_table[i].avg_turn_time);
 		metrics_table[i].cpu_utilization = 100.0;
 		printf("\tCPU Utilization: %lf \n", metrics_table[i].cpu_utilization);
+		printf("\tCache Efficiency: %lf \n", metrics_table[i].cacheEfficiency);
 	}
 }
 
@@ -1118,6 +1126,8 @@ int main(){
 	    initMemoryTable();
 	    initProcesses();
 	    total_switches = 0;
+	    cacheHits = 0;
+	    cacheMisses = 0;
 	    
 	    pthread_mutex_init(&memory_mutex, NULL);
 	    sem_init(&cache_semaphore, 0, 1);
@@ -1134,6 +1144,7 @@ int main(){
 			    end_time = clock();
 			    metrics_table[0].exec_time = end_time - start_time;
 			    metrics_table[0].context_switches = total_switches;
+			    metrics_table[0].cacheEfficiency = (double) cacheHits / (double) (cacheHits + cacheMisses);
 			    break;
 		    case 1:
 			    int timeQuantum;
@@ -1143,36 +1154,42 @@ int main(){
 			    end_time = clock();
                             metrics_table[1].exec_time = end_time - start_time;
 			    metrics_table[1].context_switches = total_switches;
+			    metrics_table[1].cacheEfficiency = (double) cacheHits / (double) (cacheHits + cacheMisses);
 			    break;
 		    case 2:
 			    Priority_Scheduler();
 			    end_time = clock();
                             metrics_table[2].exec_time = end_time - start_time;
 			    metrics_table[2].context_switches = total_switches;
+			    metrics_table[2].cacheEfficiency = (double) cacheHits / (double) (cacheHits + cacheMisses);
 			    break;
 		    case 3:
 			    SPN_Scheduler();
 			    end_time = clock();
                             metrics_table[3].exec_time = end_time - start_time;
 			    metrics_table[3].context_switches = total_switches;
+			    metrics_table[3].cacheEfficiency = (double) cacheHits / (double) (cacheHits + cacheMisses);
 			    break;
 		    case 4:
 			    SRT_Scheduler();
 			    end_time = clock();
                             metrics_table[4].exec_time = end_time - start_time;
 			    metrics_table[4].context_switches = total_switches;
+			    metrics_table[4].cacheEfficiency = (double) cacheHits / (double) (cacheHits + cacheMisses);
 			    break;
 		    case 5:
 			    HRRN_Scheduler();
 			    end_time = clock();
                             metrics_table[5].exec_time = end_time - start_time;
 			    metrics_table[5].context_switches = total_switches;
+			    metrics_table[5].cacheEfficiency = (double) cacheHits / (double) (cacheHits + cacheMisses);
 			    break;
 		    case 6:
 			    Feedback_Scheduler();
 			    end_time = clock();
                             metrics_table[6].exec_time = end_time - start_time;
 			    metrics_table[6].context_switches = total_switches;
+			    metrics_table[6].cacheEfficiency = (double) cacheHits / (double) (cacheHits + cacheMisses);
 			    break;
 		    case 7:
 			    printf("User is quitting simulation!\n");
