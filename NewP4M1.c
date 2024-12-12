@@ -588,20 +588,12 @@ void initCache(){
 // -> void
 // Purpose: initialize the process table
 void initProcesses(){
-	int arrivalTimeRange;
-	int burstTimeRange;
-	printf("Set a max for arrival time range: ");
-	scanf("%d", &arrivalTimeRange);
-	printf("Set a max for burst time range: ");
-	scanf("%d", &burstTimeRange);
 	for(int i = 0; i < MAX_PROCESSES; i++){
 		processTable[i].pid = i + 100;
 		processTable[i].PC = 0;
 		processTable[i].ACC = 0;
 		processTable[i].state = READY;
 		processTable[i].priority = (rand() % 6) + 1;
-		processTable[i].arrivalTime = (rand() % arrivalTimeRange) + 1;
-		processTable[i].burstTime = (rand() % burstTimeRange) + 1;
 		processTable[i].waitingTime = 0;
 		processTable[i].turnTime = 0;
 		processTable[i].timeRemaining = processTable[i].burstTime;
@@ -1163,9 +1155,25 @@ void display_metrics() {
 	}
 }
 
+// -> void
+// Purpose: initialize the arrival and burst times.
+void initAB() {
+	int arrivalTimeRange;
+	int burstTimeRange;
+	printf("Set a max for arrival time range: ");
+	scanf("%d", &arrivalTimeRange);
+	printf("Set a max for burst time range: ");
+	scanf("%d", &burstTimeRange);
+	for (int i = 0; i < MAX_PROCESSES; i++) {
+		processTable[i].arrivalTime = (rand() % arrivalTimeRange) + 1;
+		processTable[i].burstTime = (rand() % burstTimeRange) + 1;
+	}
+}
+
 // -> int
 // Purpose: main, initializes the simulator and lets the user select scheduler algorithms
 int main(){
+	initAB();
     while (1) {
 	    initCache();
 	    loadProgram();
