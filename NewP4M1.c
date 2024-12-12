@@ -10,7 +10,6 @@
 #include <semaphore.h>
 
 
-
 //the signals used
 //Mutexes and semaphores for safe access
 pthread_mutex_t memory_mutex;
