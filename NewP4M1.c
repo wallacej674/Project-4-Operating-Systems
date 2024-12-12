@@ -370,7 +370,7 @@ void execute(int processID){
             prev = processTable[processNum].ACC;
             result = processTable[processNum].ACC * operand;
             processTable[processNum].ACC = result;
-            printf("Core %d Operation Multiplying: %d * %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
+            printf("PID %d Operation Multiplying: %d * %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
             processTable[processNum].PC += 2; //Move to the next instruction
 
             break;
@@ -379,50 +379,50 @@ void execute(int processID){
                 prev = processTable[processNum].ACC;
                 result = processTable[processNum].ACC / operand;
                 processTable[processNum].ACC = result;
-                printf("Core %d Operation: Dividing: %d / %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
+                printf("PID %d Operation: Dividing: %d / %d = %d\n", processTable[processNum].pid, prev, operand, processTable[processNum].ACC);
                 processTable[processNum].PC += 2; //Move to the next instruction
                 break;
             }
             else{
-                printf("pid %d Operation: Division Error: Division by zero\n", processTable[processNum].pid);
+                printf("PID %d Operation: Division Error: Division by zero\n", processTable[processNum].pid);
                 errorFlag = FLAGGED;
                 break;
             }
         case LOAD:
             prev = processTable[processNum].ACC;
             processTable[processNum].ACC = operand;
-			printf("pid %d Operation: Loading data in ACC: %d -> %d\n",processTable[processNum].pid , prev, processTable[processNum].ACC);
+			printf("PID %d Operation: Loading data in ACC: %d -> %d\n",processTable[processNum].pid , prev, processTable[processNum].ACC);
             processTable[processNum].PC += 2; //Move to the next instruction
 			break;
         case STORE:
             accessMemory(operand, processTable[processNum].ACC, true);
-            printf("pid %d Operation: Storing data into memory from ACC to Adress: %d -> %d\n", processTable[processNum].pid, processTable[processNum].ACC, operand);
+            printf("PID %d Operation: Storing data into memory from ACC to Adress: %d -> %d\n", processTable[processNum].pid, processTable[processNum].ACC, operand);
             processTable[processNum].PC += 2; //Move to the next instruction
 			break;
         case AND:
             prev = processTable[processNum].ACC;
             result = processTable[processNum].ACC & operand;
             processTable[processNum].ACC = result;
-			printf("pid %d Operation: AND operation: %d & %d = %d \n", processTable[processNum].pid,  prev, operand, processTable[processNum].ACC);
+			printf("PID %d Operation: AND operation: %d & %d = %d \n", processTable[processNum].pid,  prev, operand, processTable[processNum].ACC);
             processTable[processNum].PC += 2; //Move to the next instruction
             break;
         case OR:
             prev = processTable[processNum].ACC;
             result = processTable[processNum].ACC | operand;
             processTable[processNum].ACC = result;
-            printf("pid %d Operation: OR operation: %d | %d = %d \n", processTable[processNum].pid , prev, operand, processTable[processNum].ACC);
+            printf("PID %d Operation: OR operation: %d | %d = %d \n", processTable[processNum].pid , prev, operand, processTable[processNum].ACC);
             processTable[processNum].PC += 2; //Move to the next instruction
             break;
         case JMP:
             if (operand >= 0  && operand < RAM_SIZE){
                 prev = processTable[processNum].PC;
                 processTable[processNum].PC = operand - 2;
-                printf("pid %d Operation: Jump: PC has been changed from %d to %d\n",processTable[processNum].pid ,  prev, processTable[processNum].PC);
+                printf("PID %d Operation: Jump: PC has been changed from %d to %d\n",processTable[processNum].pid ,  prev, processTable[processNum].PC);
                 processTable[processNum].PC += 2; //Move to the next instruction
                 break;
             }
             else{
-                printf("pid %d Operation: Error: Invalid Jump attempt. Out of Bounds Error\n", processTable[processNum].pid);
+                printf("PID %d Operation: Error: Invalid Jump attempt. Out of Bounds Error\n", processTable[processNum].pid);
                 errorFlag = FLAGGED;
                 break;
             }
@@ -431,24 +431,24 @@ void execute(int processID){
                 if(operand >= 0  && operand < RAM_SIZE){
                     prev = processTable[processNum].PC;
                     processTable[processNum].PC = operand - 2;
-                    printf("pid %d Operation: Jump Zero: PC has been changed from %d to %d\n", processTable[processNum].pid, prev, processTable[processNum].PC);
+                    printf("PID %d Operation: Jump Zero: PC has been changed from %d to %d\n", processTable[processNum].pid, prev, processTable[processNum].PC);
                     processTable[processNum].PC += 2; //Move to the next instruction
                     break;
                     }
                     else{
-                        printf("pid %d Operation: Error: Invalid Jump attempt. Out of Bounds Error\n",processTable[processNum].pid);
+                        printf("PID %d Operation: Error: Invalid Jump attempt. Out of Bounds Error\n",processTable[processNum].pid);
                         errorFlag = FLAGGED;
                         break;
                     }
                 
             }
             else{
-                printf("pid %d Operation: Jump Zero: Unsuccessful jump, no zero flag present.\n", processTable[processNum].pid);
+                printf("PID %d Operation: Jump Zero: Unsuccessful jump, no zero flag present.\n", processTable[processNum].pid);
                 break;
             }
 		default:
 			// Handle undefined/invalid opcodes
-			printf("pid: %d Operation: Invalid opcode given. Please try again.\n", processTable[processNum].pid);
+			printf("PID %d Operation: Invalid opcode given. Please try again.\n", processTable[processNum].pid);
             errorFlag = 1;
 			break;
         }
