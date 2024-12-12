@@ -1016,18 +1016,19 @@ void RoundRobin_Scheduler(int timeQuantum) {
 		int tail = readyQueueTail;
 		struct PCB* currentProcess = readyQueue[head];
 		if (currentTime < currentProcess->arrivalTime) {
-			currentTime = currentProcess->arrivalTime;
+			currentTime++;
+			continue;
 		}
 		execute(currentProcess->pid);
-		printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + currentProcess->burstTime);		
 		int timeSlice = (currentProcess->timeRemaining < timeQuantum) ? currentProcess->timeRemaining : timeQuantum;
+		printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + timeSlice);
 		currentProcess->timeRemaining -= timeSlice;
 		currentTime += timeSlice;
-		currentProcess->waitingTime = currentTime - currentProcess->arrivalTime - (currentProcess->burstTime - currentProcess->timeRemaining);
 
 		if (currentProcess->timeRemaining <= 0) {
 			currentProcess->state = TERMINATED;
 			currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
+			currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 			completed++;
 			printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n", currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
 			readyQueueHead = (head + 1) % MAX_PROCESSES;
