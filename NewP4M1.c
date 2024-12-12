@@ -349,6 +349,9 @@ struct Metrics metrics_table[MAX_ALGORITHMS];
 
 int total_switches;
 
+
+// int -> int
+// Purpose: gets the index value of the given pid in the process table.
 int getIndex(int processID) {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		if (processTable[i].pid == processID) {
@@ -356,7 +359,8 @@ int getIndex(int processID) {
 		}
 	}
 }
-
+// int -> void
+// Purpose: execute an instruction in the given process
 void execute(int processID){
     int prev;
     int result;
@@ -518,6 +522,8 @@ void* consumer(void* arg) {
     return NULL;
 }
 
+// -> void
+// Purpose: load instructions and values into RAM to initialize the program.
 void loadProgram() {
     // Complete: Load sample instructions into RAM
     // Eg:
@@ -563,6 +569,8 @@ void loadProgram() {
     RAM[76] = OR;    RAM[77] = 100;
 }
 
+// -> void
+// Purpose: initialize the cache
 void initCache(){
    struct Tags initTag = {-1, true};
     //initialize an empty cache l1
@@ -577,6 +585,8 @@ void initCache(){
     }
 }
 
+// -> void
+// Purpose: initialize the process table
 void initProcesses(){
 	int arrivalTimeRange;
 	int burstTimeRange;
@@ -600,6 +610,8 @@ void initProcesses(){
 	}
 }
 
+// -> void
+// Purpose: sort the processes in the ready queue by their arrival times
 void sortProcessesByArrival() {
     for (int i = 0; i < MAX_PROCESSES; i++) {
         readyQueue[i] = &processTable[i];
@@ -616,6 +628,8 @@ void sortProcessesByArrival() {
     }
 }
 
+// -> void
+// Purpose: get the first arrived process and add it to the queue
 void firstProcessInQueue() {
 	struct PCB* first = &processTable[0];
 	for (int i = 1; i < MAX_PROCESSES; i++) {
@@ -628,6 +642,8 @@ void firstProcessInQueue() {
 	readyQueue[0] = first;
 }
 
+// int, bool -> void
+// Purpose: check for any arrived processes and add it to the queue
 void checkForNewProcesses(int time, bool feedback) {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		struct PCB* process = &processTable[i];
@@ -649,6 +665,8 @@ void checkForNewProcesses(int time, bool feedback) {
 	}
 }
 
+// -> void
+// Purpose: sort the ready queue by the priority values and then by arrival times
 void sortByPriority() {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		readyQueue[i] = &processTable[i];
@@ -670,6 +688,8 @@ void sortByPriority() {
     }
 }
 
+// int -> void
+// Purpose: Find the first process in queue and assign the head to that index. Helper for priority scheduler.
 void pickPriorityProcess(int currentTime) {
 	if (currentTime == 0) {
 		return;
@@ -683,6 +703,8 @@ void pickPriorityProcess(int currentTime) {
 	}
 }
 
+// int -> void
+// Purpose:Sort the ready queue by their burst time and then their arrival time.
 void sortByShortestBurstTime(int currentTime) {
     int readyIndex = 0;
 
@@ -710,6 +732,8 @@ void sortByShortestBurstTime(int currentTime) {
     readyQueueSize = readyIndex;
 }
 
+// -> bool
+// Purpose: check if the process table is complete.
 bool complete_processes() {
         for (int i = 0; i < MAX_PROCESSES; i++) {
                 if (processTable[i].state != TERMINATED) {
@@ -719,6 +743,8 @@ bool complete_processes() {
         return true;
 }
 
+// int* -> void
+// Purpose: Process the high priority queue in feedback
 void processHighQueue(int *currentTime) {
 	while (queueHigh[highHead] != NULL) {
 		struct PCB* currentProcess = queueHigh[highHead];
@@ -746,6 +772,8 @@ void processHighQueue(int *currentTime) {
     	}
 }
 
+// int* -> void
+// Purpose: process the medium priority queue in feedback
 void processMediumQueue(int *currentTime) {
 	while (queueMedium[mediumHead] != NULL) {
 		struct PCB *currentProcess = queueMedium[mediumHead];
@@ -784,6 +812,8 @@ void processMediumQueue(int *currentTime) {
 	}
 }
 
+// int* -> void
+// Purpose: process the low priority queue in feedback
 void processLowQueue(int *currentTime) {                          
    	while (queueLow[lowHead] != NULL) {                                       
       		struct PCB *currentProcess = queueLow[lowHead];     
@@ -824,7 +854,8 @@ void processLowQueue(int *currentTime) {
 	}
 }
 
-
+// -> void
+// Purpose: scheduler for feedback algorithm
 void Feedback_Scheduler() {
 	int currentTime = 0;
 	while (!complete_processes()) {
@@ -852,6 +883,8 @@ void Feedback_Scheduler() {
 	}
 }
 
+// -> void
+// Purpose: scheduler for HRRN
 void HRRN_Scheduler() {
     int currentTime = 0;
     int completed = 0;
@@ -898,7 +931,8 @@ void HRRN_Scheduler() {
     }
 }
 
-
+// -> void
+// Purpose: scheduler for SRT
 void SRT_Scheduler() {
     int currentTime = 0;
     int completed = 0;
@@ -943,7 +977,8 @@ void SRT_Scheduler() {
     }
 }
 
-
+// -> void
+// Purpose: scheduler for SPN
 void SPN_Scheduler() {
     int currentTime = 0;
     int completed = 0;
@@ -973,7 +1008,8 @@ void SPN_Scheduler() {
     }
 }	
 
-
+// -> void
+// Purpose: scheduler for priority
 void Priority_Scheduler() {
     int currentTime = 0;
     int completed = 0;
@@ -1006,7 +1042,8 @@ void Priority_Scheduler() {
     }
 }
 
-
+// int -> void
+// Purpose: scheduler for round robin algorithm
 void RoundRobin_Scheduler(int timeQuantum) {
 	int currentTime = 0;
 	int completed = 0;
@@ -1046,7 +1083,8 @@ void RoundRobin_Scheduler(int timeQuantum) {
 	}
 }
 
-
+// -> void
+// Purpose: scheduler for FCFS algorithm
 void FCFS_Scheduler() {
     int currentTime = 0;
     sortProcessesByArrival();
@@ -1072,6 +1110,8 @@ void FCFS_Scheduler() {
     printf("\n\n");
 }
 
+// int -> void
+// Purpose: display the process table values and calculate average waiting and turnaround times.
 void display_results(int schedulerIndex) {
     printf("\nProcess Table:\n");
     printf("PID\tArrival\tBurst\tWaiting\tTurnaround\n");
@@ -1105,8 +1145,11 @@ void display_results(int schedulerIndex) {
     }
 }
 
+// string array for display purposes
 char *string[] = {"FCFS", "Round Robin", "Priority", "SPN", "SRT", "HRRN", "Feedback"};
 
+// -> void
+// Purpose: Display the metric data
 void display_metrics() {
 	for (int i = 0; i < MAX_ALGORITHMS; i++) {
 		printf("%s: \n", string[i]);
@@ -1120,6 +1163,8 @@ void display_metrics() {
 	}
 }
 
+// -> int
+// Purpose: main, initializes the simulator and lets the user select scheduler algorithms
 int main(){
     while (1) {
 	    initCache();
