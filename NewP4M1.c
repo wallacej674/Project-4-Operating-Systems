@@ -339,6 +339,8 @@ struct Metrics {
 #define MAX_ALGORITHMS 7
 struct Metrics metrics_table[MAX_ALGORITHMS];
 
+int total_switches;
+
 int getIndex(int processID) {
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		if (processTable[i].pid == processID) {
@@ -723,11 +725,13 @@ void processHighQueue(int *currentTime) {
 	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 	    		printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n", currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
+			total_switches += 1;
 		} else {
 	    		currentProcess->state = READY;
 	     		queueMedium[mediumTail] = currentProcess;
 			mediumTail = (mediumTail + 1) % MAX_PROCESSES;
 	    		printf("Process %d moved to Medium Queue\n", currentProcess->pid);
+			total_switches += 1;
 	 	}
 		queueHigh[highHead] = NULL;
 		highHead = (highHead + 1) % MAX_PROCESSES;
@@ -747,21 +751,25 @@ void processMediumQueue(int *currentTime) {
 	    		currentProcess->state = TERMINATED;
 	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
+			total_switches += 1;
 		} else if (currentProcess->timeRemaining <= highQuantum) {
 			currentProcess->state = READY;
 			queueHigh[highTail] = currentProcess;
 			highTail = (highTail + 1) % MAX_PROCESSES;
 			queueMedium[mediumHead] = NULL;
 			mediumHead = (mediumHead + 1) % MAX_PROCESSES;
+			total_switches += 1;
 			return;
 		} else if (currentProcess->timeRemaining <= mediumQuantum) {
 			currentProcess->state = READY;
 			queueMedium[mediumTail] = currentProcess;
 			mediumTail = (mediumTail + 1) % MAX_PROCESSES;
+			total_switches += 1;
 		} else {
 			currentProcess->state = READY;
 			queueLow[lowTail] = currentProcess;
 			lowTail = (lowTail + 1) % MAX_PROCESSES;
+			total_switches += 1;
 		}
 		queueMedium[mediumHead] = NULL;
 		mediumHead = (mediumHead + 1) % MAX_PROCESSES;
@@ -780,11 +788,14 @@ void processLowQueue(int *currentTime) {
                 if (currentProcess->timeRemaining <= 0) {
                         currentProcess->state = TERMINATED;
                         currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
-                        currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;                                                                             } else if (currentProcess->timeRemaining <= highQuantum) {
+			currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
+			total_switches += 1;
+		} else if (currentProcess->timeRemaining <= highQuantum) {
                         currentProcess->state = READY;                                                      queueHigh[highTail] = currentProcess;
                         highTail = (highTail + 1) % MAX_PROCESSES;
 		        queueLow[lowHead] = NULL;	
 			lowHead = (lowHead + 1) % MAX_PROCESSES;
+			total_switches += 1;
                         return;
                 } else if (currentProcess->timeRemaining <= mediumQuantum) {
                         currentProcess->state = READY;
@@ -792,11 +803,13 @@ void processLowQueue(int *currentTime) {
                         mediumTail = (mediumTail + 1) % MAX_PROCESSES;
 			queueLow[lowHead] = NULL;
 			lowHead = (lowHead + 1) % MAX_PROCESSES;
+			total_switches += 1;
 			return;
                 } else {
                         currentProcess->state = READY;
                         queueLow[lowTail] = currentProcess;
                         lowTail = (lowTail + 1) % MAX_PROCESSES;
+			total_switches += 1;
 		}
 		queueLow[lowHead] = NULL;
 		lowHead = (lowHead + 1) % MAX_PROCESSES;
@@ -862,8 +875,7 @@ void HRRN_Scheduler() {
             continue;
         }
 
-        printf("Process %d selected with response ratio %.2f at time %d\n",
-               selectedProcess->pid, highestResponseRatio, currentTime);
+        printf("Process %d selected with response ratio %.2f at time %d\n", selectedProcess->pid, highestResponseRatio, currentTime);
         execute(selectedProcess->pid);
         currentTime += selectedProcess->burstTime;
 
@@ -871,6 +883,7 @@ void HRRN_Scheduler() {
         selectedProcess->turnTime = currentTime - selectedProcess->arrivalTime;
         selectedProcess->waitingTime = selectedProcess->turnTime - selectedProcess->burstTime;
         completed++;
+	total_switches += 1;
 
         printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
                selectedProcess->pid, selectedProcess->waitingTime, selectedProcess->turnTime);
@@ -908,16 +921,15 @@ void SRT_Scheduler() {
 	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + 1);
         currentProcess->timeRemaining--;
         currentTime++;
+	total_switches += 1;
 
         if (currentProcess->timeRemaining == 0) {
             currentProcess->state = TERMINATED;
             currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
             currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
             completed++;
-
             printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
                    currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
-
             currentProcess = NULL;
         }
     }
@@ -947,7 +959,7 @@ void SPN_Scheduler() {
         currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
         currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
         completed++;
-
+	total_switches += 1;
         printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
                currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
     }
@@ -973,17 +985,17 @@ void Priority_Scheduler() {
 	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + currentProcess->burstTime);
         currentProcess->timeRemaining -= 1;
         currentTime += 1;
-
         currentProcess->waitingTime = currentTime - currentProcess->arrivalTime - (currentProcess->burstTime - currentProcess->timeRemaining);
         if (currentProcess->timeRemaining <= 0) {
 		currentProcess->state = TERMINATED;
-            currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
+		currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
             completed++;
             printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n",
                 currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
             readyQueueHead = (readyQueueHead + 1) % MAX_PROCESSES;
         }
 	checkForNewProcesses(currentTime, false);
+	total_switches += 1;
     }
 }
 
@@ -1012,6 +1024,7 @@ void RoundRobin_Scheduler(int timeQuantum) {
 			completed++;
 			printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n", currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
 			readyQueueHead = (head + 1) % MAX_PROCESSES;
+			total_switches += 1;
 		}
 		if (currentProcess->timeRemaining > 0) {
 			struct PCB* temp = readyQueue[head];
@@ -1019,6 +1032,7 @@ void RoundRobin_Scheduler(int timeQuantum) {
 			readyQueue[tail] = temp;
 			readyQueueHead = (head + 1) % MAX_PROCESSES;
 			readyQueueTail = (tail + 1) % MAX_PROCESSES;
+			total_switches += 1;
 		}
 		checkForNewProcesses(currentTime, false);
 	}
@@ -1037,11 +1051,7 @@ void FCFS_Scheduler() {
         readyQueue[i]->state = RUNNING;
         readyQueue[i]->waitingTime = currentTime - readyQueue[i]->arrivalTime;
 
-	int runTime = readyQueue[i]->burstTime;
-    while(runTime > 0){
 	execute(readyQueue[i]->pid);
-    runTime--;
-    }
         printf("P%d [%d - %d]\n", readyQueue[i]->pid, currentTime, currentTime + readyQueue[i]->burstTime);
         currentTime += readyQueue[i]->burstTime;
 
@@ -1049,6 +1059,7 @@ void FCFS_Scheduler() {
 
 	readyQueue[i]->timeRemaining = 0;
         readyQueue[i]->state = TERMINATED;
+	total_switches += 1;
     }
     printf("\n\n");
 }
@@ -1095,6 +1106,7 @@ void display_metrics() {
 		printf("\tContext Switches: %d \n", metrics_table[i].context_switches);
 		printf("\tAverage Waiting Time: %lf \n", metrics_table[i].avg_waiting_time);
 		printf("\tAverage Turnaround Time: %lf \n", metrics_table[i].avg_turn_time);
+		metrics_table[i].cpu_utilization = 100.0;
 		printf("\tCPU Utilization: %lf \n", metrics_table[i].cpu_utilization);
 	}
 }
@@ -1105,6 +1117,7 @@ int main(){
 	    loadProgram();
 	    initMemoryTable();
 	    initProcesses();
+	    total_switches = 0;
 	    
 	    pthread_mutex_init(&memory_mutex, NULL);
 	    sem_init(&cache_semaphore, 0, 1);
@@ -1120,6 +1133,7 @@ int main(){
 			    FCFS_Scheduler();
 			    end_time = clock();
 			    metrics_table[0].exec_time = end_time - start_time;
+			    metrics_table[0].context_switches = total_switches;
 			    break;
 		    case 1:
 			    int timeQuantum;
@@ -1128,31 +1142,37 @@ int main(){
 			    RoundRobin_Scheduler(timeQuantum);
 			    end_time = clock();
                             metrics_table[1].exec_time = end_time - start_time;
+			    metrics_table[1].context_switches = total_switches;
 			    break;
 		    case 2:
 			    Priority_Scheduler();
 			    end_time = clock();
                             metrics_table[2].exec_time = end_time - start_time;
+			    metrics_table[2].context_switches = total_switches;
 			    break;
 		    case 3:
 			    SPN_Scheduler();
 			    end_time = clock();
                             metrics_table[3].exec_time = end_time - start_time;
+			    metrics_table[3].context_switches = total_switches;
 			    break;
 		    case 4:
 			    SRT_Scheduler();
 			    end_time = clock();
                             metrics_table[4].exec_time = end_time - start_time;
+			    metrics_table[4].context_switches = total_switches;
 			    break;
 		    case 5:
 			    HRRN_Scheduler();
 			    end_time = clock();
                             metrics_table[5].exec_time = end_time - start_time;
+			    metrics_table[5].context_switches = total_switches;
 			    break;
 		    case 6:
 			    Feedback_Scheduler();
 			    end_time = clock();
                             metrics_table[6].exec_time = end_time - start_time;
+			    metrics_table[6].context_switches = total_switches;
 			    break;
 		    case 7:
 			    printf("User is quitting simulation!\n");
