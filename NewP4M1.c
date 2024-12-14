@@ -378,13 +378,11 @@ void execute(int processID){
     int result;
     int processNum = getIndex(processID);
     //mutating the global variables so that there is a fetch decode and execute properly established.
-    PC = processTable[processNum].PC;
-    ACC = processTable[processNum].ACC;
-    IR = accessMemory(processTable[processNum].PC, 1, false);
+    IR = accessMemory(PC, 1, false);
 
     //the decode
     int opcode = IR;
-    int operand = accessMemory(processTable[processNum].PC + 1, 1, false);
+    int operand = accessMemory(PC + 1, 1, false);
 
     //everything else below is the execute
     switch (opcode) {
@@ -628,8 +626,12 @@ void initProcesses(){
 		processTable[i].timeRemaining = processTable[i].burstTime;
 		processTable[i].responseRatio = 0;
 		processTable[i].inQueue = false;
+
+        allocateMemory(processTable[i].pid, processTable[i].burstTime);
 	}
 }
+
+
 
 // -> void
 // Purpose: sort the processes in the ready queue by their arrival times
@@ -763,6 +765,28 @@ bool complete_processes() {
         }
         return true;
 }
+//int time, int PID -> void()
+//to execute a process n amount of times
+void executeProcess(int time, int processPID){
+    for(int i = 0; i < time; i++){
+        execute(processPID);
+    }
+}
+
+
+//PCB -> void()
+//does the context switch where the next processes PC, ACC, and state are changed so that the cpu runs this PCBs process.
+void contextSwitch(struct PCB* nextProcess){
+    if(nextProcess->state != READY){
+        printf("Invalid context switch to non-ready process.\n");
+        return;
+    }
+    PC = nextProcess->PC;
+    ACC = nextProcess->ACC;
+    processTable->state = RUNNING;
+    printf("Context switch complete! PID %d is now running...\n", nextProcess->pid);
+    return;
+}
 
 // int* -> void
 // Purpose: Process the high priority queue in feedback
@@ -770,13 +794,14 @@ void processHighQueue(int *currentTime) {
 	while (queueHigh[highHead] != NULL) {
 		struct PCB* currentProcess = queueHigh[highHead];
 		int executeTime = (currentProcess->timeRemaining > highQuantum) ? highQuantum : currentProcess->timeRemaining;
-		currentProcess->state = RUNNING;
-		execute(currentProcess->pid);
+        contextSwitch(currentProcess);
+        executeProcess(executeTime, currentProcess->pid);
 		printf("High: P%d [%d - %d]\n", currentProcess->pid, *currentTime, *currentTime + executeTime);
 		*currentTime += executeTime;
 		currentProcess->timeRemaining -= executeTime;
 		if (currentProcess->timeRemaining <= 0) {
 			currentProcess->state = TERMINATED;
+                deallocateMemory(currentProcess->pid);
 	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 	    		printf("Process %d completed. Waiting Time: %d, Turnaround Time: %d\n", currentProcess->pid, currentProcess->waitingTime, currentProcess->turnTime);
@@ -799,13 +824,14 @@ void processMediumQueue(int *currentTime) {
 	while (queueMedium[mediumHead] != NULL) {
 		struct PCB *currentProcess = queueMedium[mediumHead];
 		int executeTime = (currentProcess->timeRemaining > mediumQuantum) ? mediumQuantum : currentProcess->timeRemaining;
-		currentProcess->state = RUNNING;
-		execute(currentProcess->pid);
+        contextSwitch(currentProcess);
+		executeProcess(executeTime, currentProcess->pid);
 		printf("Medium: P%d [%d - %d]\n", currentProcess->pid, *currentTime, *currentTime + executeTime);
 		*currentTime += executeTime;
 	       	currentProcess->timeRemaining -= executeTime;
 		if (currentProcess->timeRemaining <= 0) {
 	    		currentProcess->state = TERMINATED;
+                deallocateMemory(currentProcess->pid);
 	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 			total_switches += 1;
@@ -839,13 +865,14 @@ void processLowQueue(int *currentTime) {
    	while (queueLow[lowHead] != NULL) {                                       
       		struct PCB *currentProcess = queueLow[lowHead];     
 		int executeTime = (currentProcess->timeRemaining > lowQuantum) ? lowQuantum : currentProcess->timeRemaining;
-		currentProcess->state = RUNNING;
-                execute(currentProcess->pid);
+                contextSwitch(currentProcess);
+                executeProcess(executeTime, currentProcess->pid);
 		printf("Low: P%d [%d - %d]\n", currentProcess->pid, *currentTime, *currentTime + executeTime);
                 *currentTime += executeTime;
                 currentProcess->timeRemaining -= executeTime;
                 if (currentProcess->timeRemaining <= 0) {
                         currentProcess->state = TERMINATED;
+                        deallocateMemory(currentProcess->pid);
                         currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 			currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 			total_switches += 1;
@@ -938,10 +965,12 @@ void HRRN_Scheduler() {
         }
 
         printf("Process %d selected with response ratio %.2f at time %d\n", selectedProcess->pid, highestResponseRatio, currentTime);
-        execute(selectedProcess->pid);
+        contextSwitch(selectedProcess);
+        executeProcess(selectedProcess->burstTime, selectedProcess->pid);
         currentTime += selectedProcess->burstTime;
 
         selectedProcess->state = TERMINATED;
+        deallocateMemory(selectedProcess->pid);
         selectedProcess->turnTime = currentTime - selectedProcess->arrivalTime;
         selectedProcess->waitingTime = selectedProcess->turnTime - selectedProcess->burstTime;
         completed++;
@@ -977,6 +1006,8 @@ void SRT_Scheduler() {
 
         if (currentProcess != shortestProcess) {
             currentProcess = shortestProcess;
+            currentProcess->state = READY;
+            contextSwitch(currentProcess);
             printf("New shortest process %d changed at time %d\n", currentProcess->pid, currentTime);
         }
 
@@ -986,8 +1017,9 @@ void SRT_Scheduler() {
         currentTime++;
 	total_switches += 1;
 
-        if (currentProcess->timeRemaining == 0) {
+        if (currentProcess->timeRemaining <= 0) {
             currentProcess->state = TERMINATED;
+            deallocateMemory(currentProcess->pid);
             currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
             currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
             completed++;
@@ -1013,13 +1045,14 @@ void SPN_Scheduler() {
         }
 
         struct PCB* currentProcess = readyQueue[0];
-
-        execute(currentProcess->pid);
+        contextSwitch(currentProcess);
+        executeProcess(currentProcess->burstTime, currentProcess->pid);
 	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + currentProcess->burstTime);
         currentTime += currentProcess->burstTime;
 
         currentProcess->timeRemaining = 0;
         currentProcess->state = TERMINATED;
+        deallocateMemory(currentProcess->pid);
         currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
         currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
         completed++;
@@ -1044,13 +1077,14 @@ void Priority_Scheduler() {
 		currentTime++;
 		continue;
 	}
-
+    contextSwitch(currentProcess);
 	execute(currentProcess->pid);
 	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + 1);
         currentProcess->timeRemaining -= 1;
         currentTime += 1;
         if (currentProcess->timeRemaining <= 0) {
 		currentProcess->state = TERMINATED;
+        deallocateMemory(currentProcess->pid);
 		currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
 		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
             completed++;
@@ -1077,14 +1111,17 @@ void RoundRobin_Scheduler(int timeQuantum) {
 			currentTime++;
 			continue;
 		}
-		execute(currentProcess->pid);
+        
 		int timeSlice = (currentProcess->timeRemaining < timeQuantum) ? currentProcess->timeRemaining : timeQuantum;
+        contextSwitch(currentProcess);
+        executeProcess(timeSlice, currentProcess->pid);
 		printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + timeSlice);
 		currentProcess->timeRemaining -= timeSlice;
 		currentTime += timeSlice;
 
 		if (currentProcess->timeRemaining <= 0) {
 			currentProcess->state = TERMINATED;
+            deallocateMemory(currentProcess->pid);
 			currentProcess->turnTime = currentTime - currentProcess->arrivalTime;
 			currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 			completed++;
@@ -1114,11 +1151,9 @@ void FCFS_Scheduler() {
         if (currentTime < readyQueue[i]->arrivalTime) {
             currentTime = readyQueue[i]->arrivalTime;
         }
-
-        readyQueue[i]->state = RUNNING;
         readyQueue[i]->waitingTime = currentTime - readyQueue[i]->arrivalTime;
-
-	execute(readyQueue[i]->pid);
+        contextSwitch(readyQueue[i]);
+        executeProcess(readyQueue[i]->burstTime, readyQueue[i]->pid);
         printf("P%d [%d - %d]\n", readyQueue[i]->pid, currentTime, currentTime + readyQueue[i]->burstTime);
         currentTime += readyQueue[i]->burstTime;
 
@@ -1126,6 +1161,7 @@ void FCFS_Scheduler() {
 
 	readyQueue[i]->timeRemaining = 0;
         readyQueue[i]->state = TERMINATED;
+        deallocateMemory(readyQueue[i]->pid);
 	total_switches += 1;
     }
     printf("\n\n");
