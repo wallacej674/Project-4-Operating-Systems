@@ -829,7 +829,8 @@ void contextSwitch(struct PCB* nextProcess){
 
 // int* -> void
 // Purpose: Process the high priority queue in feedback
-void processHighQueue(int *currentTime) {
+int processHighQueue(int *currentTime) {
+    int processCompleted = 0;
 	while (queueHigh[highHead] != NULL) {
 		struct PCB* currentProcess = queueHigh[highHead];
 		int executeTime = (currentProcess->timeRemaining > highQuantum) ? highQuantum : currentProcess->timeRemaining;
@@ -840,6 +841,7 @@ void processHighQueue(int *currentTime) {
 		currentProcess->timeRemaining -= executeTime;
 		if (currentProcess->timeRemaining <= 0) {
 			currentProcess->state = TERMINATED;
+            processCompleted++;
                 deallocateMemory(currentProcess->pid);
 	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
@@ -855,11 +857,13 @@ void processHighQueue(int *currentTime) {
 		queueHigh[highHead] = NULL;
 		highHead = (highHead + 1) % MAX_PROCESSES;
     	}
+        return processCompleted;
 }
 
 // int* -> void
 // Purpose: process the medium priority queue in feedback
-void processMediumQueue(int *currentTime) {
+int processMediumQueue(int *currentTime) {
+    int processCompleted = 0;
 	while (queueMedium[mediumHead] != NULL) {
 		struct PCB *currentProcess = queueMedium[mediumHead];
 		int executeTime = (currentProcess->timeRemaining > mediumQuantum) ? mediumQuantum : currentProcess->timeRemaining;
@@ -871,6 +875,7 @@ void processMediumQueue(int *currentTime) {
 		if (currentProcess->timeRemaining <= 0) {
 	    		currentProcess->state = TERMINATED;
                 deallocateMemory(currentProcess->pid);
+                processCompleted++;
 	    		currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 	    		currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 			total_switches += 1;
@@ -881,7 +886,7 @@ void processMediumQueue(int *currentTime) {
 			queueMedium[mediumHead] = NULL;
 			mediumHead = (mediumHead + 1) % MAX_PROCESSES;
 			total_switches += 1;
-			return;
+			return processCompleted;
 		} else if (currentProcess->timeRemaining <= mediumQuantum) {
 			currentProcess->state = READY;
 			queueMedium[mediumTail] = currentProcess;
@@ -896,11 +901,13 @@ void processMediumQueue(int *currentTime) {
 		queueMedium[mediumHead] = NULL;
 		mediumHead = (mediumHead + 1) % MAX_PROCESSES;
 	}
+    return processCompleted;
 }
 
 // int* -> void
 // Purpose: process the low priority queue in feedback
-void processLowQueue(int *currentTime) {                          
+int processLowQueue(int *currentTime) {     
+    int processCompleted = 0;                     
    	while (queueLow[lowHead] != NULL) {                                       
       		struct PCB *currentProcess = queueLow[lowHead];     
 		int executeTime = (currentProcess->timeRemaining > lowQuantum) ? lowQuantum : currentProcess->timeRemaining;
@@ -912,6 +919,7 @@ void processLowQueue(int *currentTime) {
                 if (currentProcess->timeRemaining <= 0) {
                         currentProcess->state = TERMINATED;
                         deallocateMemory(currentProcess->pid);
+                        processCompleted++;
                         currentProcess->turnTime = *currentTime - currentProcess->arrivalTime;
 			currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 			total_switches += 1;
@@ -922,7 +930,7 @@ void processLowQueue(int *currentTime) {
 		        queueLow[lowHead] = NULL;	
 			lowHead = (lowHead + 1) % MAX_PROCESSES;
 			total_switches += 1;
-                        return;
+                        return processCompleted;
                 } else if (currentProcess->timeRemaining <= mediumQuantum) {
                         currentProcess->state = READY;
                         queueMedium[mediumTail] = currentProcess;
@@ -930,7 +938,7 @@ void processLowQueue(int *currentTime) {
 			queueLow[lowHead] = NULL;
 			lowHead = (lowHead + 1) % MAX_PROCESSES;
 			total_switches += 1;
-			return;
+			return processCompleted;
                 } else {
                         currentProcess->state = READY;
                         queueLow[lowTail] = currentProcess;
@@ -940,30 +948,32 @@ void processLowQueue(int *currentTime) {
 		queueLow[lowHead] = NULL;
 		lowHead = (lowHead + 1) % MAX_PROCESSES;
 	}
+    return processCompleted;
 }
 
 // -> void
 // Purpose: scheduler for feedback algorithm
 void Feedback_Scheduler() {
 	int currentTime = 0;
-	while (!complete_processes()) {
+    int completed = 0;
+	while (completed < MAX_PROCESSES) {
 		checkForNewProcesses(currentTime, true);
 
 		if (queueHigh[highHead] == NULL && queueMedium[mediumHead] == NULL && queueLow[lowHead] == NULL) {
 			currentTime++;
 			continue;
 		}
-		processHighQueue(&currentTime);
+		completed+= processHighQueue(&currentTime);
 		checkForNewProcesses(currentTime, true);
 		if (queueHigh[highHead] != NULL) {
 			continue;
 		}
-		processMediumQueue(&currentTime);
+		completed+=processMediumQueue(&currentTime);
 		checkForNewProcesses(currentTime, true);
 		if (queueHigh[highHead] != NULL) {
 			continue;
 		}
-		processLowQueue(&currentTime);
+		completed+=processLowQueue(&currentTime);
 		checkForNewProcesses(currentTime, true);
 		if (queueHigh[highHead] != NULL || queueMedium[mediumHead] != NULL) {
 			continue;
