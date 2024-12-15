@@ -80,12 +80,14 @@ int allocateMemory(int processID, int size) {
     memoryTable[i].isFree = 0;
     successful_alloc = true;
     printf("Memory Allocation: ProcessID: %d Memory Start: %d, Memory End: %d \n", processID, memoryTable[i].memoryStart, memoryTable[i].memoryEnd);
+    //sleep(1);
     break;
  }
 
  }
  if(!successful_alloc){
     printf("Memory Allocation Error: Not enough space for Process %d \n", processID);
+    //sleep(1);
  }
     return 0;
 }
@@ -383,6 +385,7 @@ void execute(int processID){
     //the decode
     int opcode = IR;
     int operand = accessMemory(PC + 1, 1, false);
+    printf("PC val: %d    ACC val: %d   Opcode val: %d   operand val: %d  \n", PC, ACC, opcode, operand);
 
     //everything else below is the execute
     switch (opcode) {
@@ -390,7 +393,7 @@ void execute(int processID){
             result = ACC + operand;
             prev = ACC;
             ACC = result;
-            printf("PID %d: Operation Add, %d + %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
+            printf("PID %d Operation Add: %d + %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
             PC += 2; //Move to the next instruction
             updatePCB(processNum, PC, ACC);
             break;
@@ -398,7 +401,7 @@ void execute(int processID){
             result  = ACC - operand;
             prev = ACC;
             ACC = result;
-            printf("PID %d Operation: Subtracting: %d - %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
+            printf("PID %d Operation Subtracting: %d - %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
             PC += 2; //Move to the next instruction
             updatePCB(processNum, PC, ACC);
             break;
@@ -415,26 +418,27 @@ void execute(int processID){
                 prev = ACC;
                 result = ACC / operand;
                 ACC = result;
-                printf("PID %d Operation: Dividing: %d / %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
+                printf("PID %d Operation Dividing: %d / %d = %d\n", processTable[processNum].pid, prev, operand, ACC);
                 PC += 2; //Move to the next instruction
                 updatePCB(processNum, PC, ACC);
                 break;
             }
             else{
-                printf("PID %d Operation: Division Error: Division by zero\n", processTable[processNum].pid);
+                printf("PID %d Operation Division Error: Division by zero\n", processTable[processNum].pid);
                 errorFlag = FLAGGED;
                 break;
             }
         case LOAD:
             prev = ACC;
             ACC = operand;
-			printf("PID %d Operation: Loading data in ACC: %d -> %d\n",processTable[processNum].pid , prev, ACC);
+			printf("PID %d Operation Loading data in ACC: %d -> %d\n",processTable[processNum].pid , prev, ACC);
             PC += 2; //Move to the next instruction
             updatePCB(processNum, PC, ACC);
 			break;
         case STORE:
+            //(int address, int data, bool isWrite)
             accessMemory(operand, ACC, true);
-            printf("PID %d Operation: Storing data into memory from ACC to Adress: %d -> %d\n", processTable[processNum].pid, ACC, operand);
+            printf("PID %d Operation Storing data into memory from ACC to Adress: %d -> %d\n", processTable[processNum].pid, ACC, operand);
             PC += 2; //Move to the next instruction
             updatePCB(processNum, PC, ACC);
 			break;
@@ -442,7 +446,7 @@ void execute(int processID){
             prev = ACC;
             result = ACC & operand;
             ACC = result;
-			printf("PID %d Operation: AND operation: %d & %d = %d \n", processTable[processNum].pid,  prev, operand, ACC);
+			printf("PID %d Operation AND operation: %d & %d = %d \n", processTable[processNum].pid,  prev, operand, ACC);
             PC += 2; //Move to the next instruction
             updatePCB(processNum, PC, ACC);
             break;
@@ -450,7 +454,7 @@ void execute(int processID){
             prev = ACC;
             result = ACC | operand;
             ACC = result;
-            printf("PID %d Operation: OR operation: %d | %d = %d \n", processTable[processNum].pid , prev, operand, ACC);
+            printf("PID %d Operation OR operation: %d | %d = %d \n", processTable[processNum].pid , prev, operand, ACC);
             PC += 2; //Move to the next instruction
             updatePCB(processNum, PC, ACC);
             break;
@@ -458,13 +462,13 @@ void execute(int processID){
             if (operand >= 0  && operand < RAM_SIZE){
                 prev = PC;
                 PC = operand - 2;
-                printf("PID %d Operation: Jump: PC has been changed from %d to %d\n",processTable[processNum].pid ,  prev, PC);
+                printf("PID %d Operation Jump: PC has been changed from %d to %d\n",processTable[processNum].pid ,  prev, PC + 2);
                 PC += 2; //Move to the next instruction
                 updatePCB(processNum, PC, ACC);
                 break;
             }
             else{
-                printf("PID %d Operation: Error: Invalid Jump attempt. Out of Bounds Error\n", processTable[processNum].pid);
+                printf("PID %d Operation Error: Invalid Jump attempt. Out of Bounds Error\n", processTable[processNum].pid);
                 errorFlag = FLAGGED;
                 break;
             }
@@ -473,20 +477,22 @@ void execute(int processID){
                 if(operand >= 0  && operand < RAM_SIZE){
                     prev = PC;
                     PC = operand - 2;
-                    printf("PID %d Operation: Jump Zero: PC has been changed from %d to %d\n", processTable[processNum].pid, prev, PC);
+                    printf("PID %d Operation Jump Zero: PC has been changed from %d to %d\n", processTable[processNum].pid, prev, PC);
                     PC += 2; //Move to the next instruction
                     updatePCB(processNum, PC, ACC);
                     break;
                     }
                     else{
-                        printf("PID %d Operation: Error: Invalid Jump attempt. Out of Bounds Error\n",processTable[processNum].pid);
+                        printf("PID %d Operation Error: Invalid Jump attempt. Out of Bounds Error\n",processTable[processNum].pid);
                         errorFlag = FLAGGED;
                         break;
                     }
                 
             }
             else{
-                printf("PID %d Operation: Jump Zero: Unsuccessful jump, no zero flag present.\n", processTable[processNum].pid);
+                printf("PID %d Operation Jump Zero: Unsuccessful jump, no zero flag present.\n", processTable[processNum].pid);
+                PC += 2;
+                updatePCB(processNum, PC, ACC);
                 break;
             }
 		default:
@@ -495,6 +501,8 @@ void execute(int processID){
             errorFlag = 1;
 			break;
         }
+        //sleep(1);
+
     }
 
 #define BUFFER_SIZE 5 //buffer size for producer-consumer
@@ -545,8 +553,6 @@ void* consumer(void* arg) {
 // Purpose: load instructions and values into RAM to initialize the program.
 void loadProgram() {
     // Complete: Load sample instructions into RAM
-    // Eg:
-    // RAM[0] = LOAD; RAM[1] = 10; // LOAD 10 into ACC
     RAM[0] = LOAD;   RAM[1] = 10;    
     RAM[2] = ADD;    RAM[3] = 5;     
     RAM[4] = STORE;  RAM[5] = 3;     
@@ -574,18 +580,57 @@ void loadProgram() {
     RAM[48] = JMP;   RAM[49] = 52;
     RAM[50] = JZ;    RAM[51] = 40;
     RAM[52] = LOAD;  RAM[53] = 65;
-    RAM[54] = SUB;   RAM[55] = 75;
+    RAM[54] = SUB;   RAM[55] = 10;
     RAM[56] = OR;    RAM[57] = 85;
     RAM[58] = LOAD;  RAM[59] = 10;
     RAM[60] = ADD;   RAM[61] = 40;
     RAM[62] = SUB;   RAM[63] = 30;
     RAM[64] = MUL;   RAM[65] = 40;
     RAM[66] = DIV;   RAM[67] = 50;
-    RAM[68] = STORE; RAM[69] = 60;
+    RAM[68] = STORE; RAM[69] = 61;
     RAM[70] = JMP;   RAM[71] = 72;
     RAM[72] = JZ;    RAM[73] = 80;
     RAM[74] = AND;   RAM[75] = 90;
     RAM[76] = OR;    RAM[77] = 100;
+    RAM[78] = LOAD;  RAM[79] = 10;    
+    RAM[80] = ADD;   RAM[81] = 5;     
+    RAM[82] = STORE; RAM[83] = 3;     
+    RAM[84] = LOAD;  RAM[85] = 12;    
+    RAM[86] = SUB;   RAM[87] = 3;     
+    RAM[88] = JZ;    RAM[89] = 16;   
+    RAM[90] = JMP;   RAM[91] = 100;   
+    RAM[92] = MUL;   RAM[93] = 2;    
+    RAM[94] = LOAD;  RAM[95] = 2;    
+    RAM[96] = DIV;   RAM[97] = 2;    
+    RAM[98] = LOAD;  RAM[99] = 3;     
+    RAM[100] = ADD;  RAM[101] = 10;    
+    RAM[102] = AND;  RAM[103] = 4;     
+    RAM[104] = OR;   RAM[105] = 8;    
+    RAM[106] = STORE;RAM[107] = 25;    
+    RAM[108] = LOAD; RAM[109] = 7;     
+    RAM[110] = JMP;  RAM[111] = 120;    
+    RAM[112] = DIV;  RAM[113] = 2;     
+    RAM[114] = SUB;  RAM[115] = 1;     
+    RAM[116] = LOAD; RAM[117] = 15; 
+    RAM[118] = ADD;  RAM[119] = 25;
+    RAM[120] = MUL;  RAM[121] = 35;
+    RAM[122] = STORE;RAM[123] = 45;
+    RAM[124] = DIV;  RAM[125] = 55;
+    RAM[126] = JMP;  RAM[127] = 142;
+    RAM[128] = JZ;   RAM[129] = 40;
+    RAM[130] = LOAD; RAM[131] = 65;
+    RAM[132] = SUB;  RAM[133] = 75;
+    RAM[134] = OR;   RAM[135] = 85;
+    RAM[136] = LOAD; RAM[137] = 10;
+    RAM[138] = ADD;  RAM[139] = 40;
+    RAM[140] = SUB;  RAM[141] = 30;
+    RAM[142] = MUL;  RAM[143] = 40;
+    RAM[144] = DIV;  RAM[145] = 50;
+    RAM[146] = STORE;RAM[147] = 61;
+    RAM[148] = JMP;  RAM[149] = 154;
+    RAM[150] = JZ;   RAM[151] = 80;
+    RAM[152] = AND;  RAM[153] = 90;
+    RAM[154] = OR;   RAM[155] = 100;
 }
 
 // -> void
@@ -607,20 +652,18 @@ void initCache(){
 // -> void
 // Purpose: initialize the process table
 void initProcesses(){
-	int arrivalTimeRange;
-	int burstTimeRange;
-	printf("Set a max for arrival time range: ");
-	scanf("%d", &arrivalTimeRange);
-	printf("Set a max for burst time range: ");
-	scanf("%d", &burstTimeRange);
+	int burstTimes[] = {5, 3, 37, 7, 14, 10};
+    int arrivalTimes[] = {6, 4, 0, 10, 9, 3};
+    int priorities[] = {6, 3, 5, 4, 2, 1};
+    int PCs[] = {0, 10, 0, 112, 58, 116};
 	for(int i = 0; i < MAX_PROCESSES; i++){
 		processTable[i].pid = i + 100;
-		processTable[i].PC = 0;
+		processTable[i].PC = PCs[i];
 		processTable[i].ACC = 0;
 		processTable[i].state = READY;
-		processTable[i].priority = (rand() % 6) + 1;
-		processTable[i].arrivalTime = (rand() % arrivalTimeRange) + 1;
-		processTable[i].burstTime = (rand() % burstTimeRange) + 1;
+		processTable[i].priority = priorities[i];
+		processTable[i].arrivalTime = arrivalTimes[i];
+		processTable[i].burstTime = burstTimes[i];
 		processTable[i].waitingTime = 0;
 		processTable[i].turnTime = 0;
 		processTable[i].timeRemaining = processTable[i].burstTime;
@@ -777,10 +820,6 @@ void executeProcess(int time, int processPID){
 //PCB -> void()
 //does the context switch where the next processes PC, ACC, and state are changed so that the cpu runs this PCBs process.
 void contextSwitch(struct PCB* nextProcess){
-    if(nextProcess->state != READY){
-        printf("Invalid context switch to non-ready process.\n");
-        return;
-    }
     PC = nextProcess->PC;
     ACC = nextProcess->ACC;
     processTable->state = RUNNING;
@@ -877,7 +916,8 @@ void processLowQueue(int *currentTime) {
 			currentProcess->waitingTime = currentProcess->turnTime - currentProcess->burstTime;
 			total_switches += 1;
 		} else if (currentProcess->timeRemaining <= highQuantum) {
-                        currentProcess->state = READY;                                                      queueHigh[highTail] = currentProcess;
+                        currentProcess->state = READY;                                                      
+                        queueHigh[highTail] = currentProcess;
                         highTail = (highTail + 1) % MAX_PROCESSES;
 		        queueLow[lowHead] = NULL;	
 			lowHead = (lowHead + 1) % MAX_PROCESSES;
@@ -1067,18 +1107,25 @@ void SPN_Scheduler() {
 void Priority_Scheduler() {
     int currentTime = 0;
     int completed = 0;
+    int prevProcessPID = -1;
     firstProcessInQueue();
     while (completed < MAX_PROCESSES) {
 	    sortByPriority();
 	    pickPriorityProcess(currentTime);
         struct PCB* currentProcess = readyQueue[readyQueueHead];
+        int currentProcessPID = currentProcess->pid; 
 
         if (currentTime < currentProcess->arrivalTime) {
 		currentTime++;
 		continue;
 	}
-    contextSwitch(currentProcess);
+    if(prevProcessPID != currentProcessPID){
+        contextSwitch(currentProcess);
+        prevProcessPID = currentProcessPID;
+    }
+
 	execute(currentProcess->pid);
+
 	printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + 1);
         currentProcess->timeRemaining -= 1;
         currentTime += 1;
@@ -1102,18 +1149,23 @@ void Priority_Scheduler() {
 void RoundRobin_Scheduler(int timeQuantum) {
 	int currentTime = 0;
 	int completed = 0;
+    int prevProcessPID = -1;
 	firstProcessInQueue();
 	while (completed < MAX_PROCESSES) {
 		int head = readyQueueHead;
 		int tail = readyQueueTail;
 		struct PCB* currentProcess = readyQueue[head];
+        int currentProcessPID = currentProcess->pid;
 		if (currentTime < currentProcess->arrivalTime) {
 			currentTime++;
 			continue;
 		}
         
 		int timeSlice = (currentProcess->timeRemaining < timeQuantum) ? currentProcess->timeRemaining : timeQuantum;
+        if(prevProcessPID != currentProcessPID){
         contextSwitch(currentProcess);
+        prevProcessPID = currentProcessPID;
+        }
         executeProcess(timeSlice, currentProcess->pid);
 		printf("P%d [%d - %d]\n", currentProcess->pid, currentTime, currentTime + timeSlice);
 		currentProcess->timeRemaining -= timeSlice;
