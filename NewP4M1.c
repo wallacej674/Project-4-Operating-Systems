@@ -385,7 +385,6 @@ void execute(int processID){
     //the decode
     int opcode = IR;
     int operand = accessMemory(PC + 1, 1, false);
-    printf("PC val: %d    ACC val: %d   Opcode val: %d   operand val: %d  \n", PC, ACC, opcode, operand);
 
     //everything else below is the execute
     switch (opcode) {
