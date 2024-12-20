@@ -15,6 +15,8 @@
 #define SYSCALL_INT 2
 #define TRAP_INT 3
 
+
+
 struct IVTEntry {
     int priority;
     void (*handler)();
@@ -22,14 +24,7 @@ struct IVTEntry {
 
 struct IVTEntry IVT[MAX_INTERRUPTS];
 
-// void -> void
-// Purpose: Initialize the Interrupt Vector Table (IVT) with interrupt types, priorities, and their handlers.
-void initIVT() {
-    IVT[TIMER_INT] = (struct IVTEntry){1, timerInterrupt};
-    IVT[IO_INT] = (struct IVTEntry){2, ioInterrupt};
-    IVT[SYSCALL_INT] = (struct IVTEntry){3, syscallInterrupt};
-    IVT[TRAP_INT] = (struct IVTEntry){4, trapInterrupt};
-}
+
 
 //the global variables for the CPU
 int PC;
@@ -51,7 +46,7 @@ struct StatusRegister {
 //Define cache and RAM sizes
 #define L1_CACHE_SIZE 64
 #define L2_CACHE_SIZE 128
-#define RAM_SIZE 1024
+#define RAM_SIZE 10000
 
 //Define memory structures
 int RAM[RAM_SIZE]; 
@@ -396,12 +391,107 @@ void updatePCB(int index, int PC, int ACC){
     processTable[index].ACC = ACC;
 }
 
+//PCB -> void()
+//does the context switch where the next processes PC, ACC, and state are changed so that the cpu runs this PCBs process.
+void contextSwitch(struct PCB* nextProcess){
+    PC = nextProcess->PC;
+    ACC = nextProcess->ACC;
+    processTable->state = RUNNING;
+    printf("Context switch complete! PID %d is now running...\n", nextProcess->pid);
+    return;
+}
+
+// int, int -> void
+// Purpose: Save the current process state and restore the next process state for execution.
+void dispatcher(struct PCB* nextProcess) {
+    printf("Dispatching: Switching to process %d.\n", nextProcess->pid);
+    contextSwitch(nextProcess);
+}
+
+// void -> void
+// Purpose: Handle the timer interrupt, triggering a context switch for Round-Robin scheduling.
+void timerInterrupt() {
+    printf("Timer Interrupt: Triggering context switch...\n");
+    //sleep(1);
+    struct PCB* nextProcess = readyQueue[readyQueueHead];
+    struct PCB* currentProcess = &processTable[readyQueueTail];
+    dispatcher(nextProcess);
+    readyQueueTail = (readyQueueTail + 1) % MAX_PROCESSES;
+    readyQueue[readyQueueTail] = currentProcess;
+    total_switches++;
+}
+
+// void -> void
+// Purpose: Handle the I/O interrupt by moving a BLOCKED process to the READY state.
+void ioInterrupt() {
+    //sleep(1);
+    printf("I/O Interrupt: Process moved from BLOCKED to READY.\n");
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (processTable[i].state == BLOCKED) {
+            processTable[i].state = READY;
+            printf("Process %d is now READY.\n", processTable[i].pid);
+            break;
+        }
+    }
+}
+
+// void -> void
+// Purpose: Handle a system call interrupt to execute privileged operations like memory allocation.
+void syscallInterrupt() {
+    printf("System Call Interrupt: Executing privileged operation...\n");
+    //sleep(1);
+    int pid = rand() % MAX_PROCESSES;
+    int allocSize = rand() % (RAM_SIZE / 10);
+    if (allocateMemory(pid, allocSize) == 0) {
+        printf("System call successful: Allocated %d units of memory to Process %d.\n", allocSize, pid);
+    } else {
+        printf("System call failed: Not enough memory for Process %d.\n", pid);
+    }
+}
+
+// void -> void
+// Purpose: Handle a trap interrupt to address errors such as division by zero and invalid memory access.
+void trapInterrupt() {
+    printf("Trap Interrupt: Handling error...\n");
+    //sleep(1);
+    for (int i = 0; i < MAX_PROCESSES; i++) {
+        if (processTable[i].state == RUNNING && errorFlag) {
+            printf("Error in Process %d. Terminating...\n", processTable[i].pid);
+            processTable[i].state = TERMINATED;
+            deallocateMemory(processTable[i].pid);
+            errorFlag = 0;
+            break;
+        }
+    }
+
+}
+
+// int -> void
+// Purpose: Handle interrupts by prioritizing them based on their assigned levels in the IVT.
+void handleInterrupt(int interruptType) {
+    static int activeInterrupt = -1;
+
+    if (activeInterrupt == -1 || IVT[interruptType].priority < IVT[activeInterrupt].priority) {
+        if (activeInterrupt != -1) {
+            printf("Deferring lower-priority interrupt %d\n", activeInterrupt);
+        }
+        activeInterrupt = interruptType;
+        IVT[interruptType].handler();
+        activeInterrupt = -1;
+    } else {
+        printf("Interrupt %d deferred due to higher-priority active interrupt %d.\n",
+               interruptType, activeInterrupt);
+    }
+}
+
 // void -> void
 // Purpose: Simulate and check for random interrupts, resolving them using their handlers.
 void checkAndHandleInterrupts() {
     int randomInterrupt = rand() % MAX_INTERRUPTS; // Simulate random interrupt
     handleInterrupt(randomInterrupt);
 }
+
+
 
 // int -> void
 // Purpose: execute an instruction in the given process
@@ -535,6 +625,8 @@ void execute(int processID){
 
     }
 
+
+
 #define BUFFER_SIZE 5 //buffer size for producer-consumer
 #define NUM_THREADS 4 //no of threads for each main task
 sem_t buffer_full, buffer_empty;
@@ -660,61 +752,9 @@ void loadProgram() {
     RAM[148] = JMP;  RAM[149] = 154;
     RAM[150] = JZ;   RAM[151] = 80;
     RAM[152] = AND;  RAM[153] = 90;
-    RAM[154] = OR;   RAM[155] = 100;
+    RAM[154] = JMP;   RAM[155] = 0;
 }
 
-// void -> void
-// Purpose: Handle the timer interrupt, triggering a context switch for Round-Robin scheduling.
-void timerInterrupt() {
-    printf("Timer Interrupt: Triggering context switch...\n");
-    struct PCB* nextProcess = readyQueue[readyQueueHead];
-    struct PCB* currentProcess = &processTable[readyQueueTail];
-    dispatcher(currentProcess->pid, nextProcess->pid);
-    readyQueueTail = (readyQueueTail + 1) % MAX_PROCESSES;
-    readyQueue[readyQueueTail] = currentProcess;
-    total_switches++;
-}
-
-// void -> void
-// Purpose: Handle the I/O interrupt by moving a BLOCKED process to the READY state.
-void ioInterrupt() {
-    printf("I/O Interrupt: Process moved from BLOCKED to READY.\n");
-    for (int i = 0; i < MAX_PROCESSES; i++) {
-        if (processTable[i].state == BLOCKED) {
-            processTable[i].state = READY;
-            printf("Process %d is now READY.\n", processTable[i].pid);
-            break;
-        }
-    }
-}
-
-// void -> void
-// Purpose: Handle a system call interrupt to execute privileged operations like memory allocation.
-void syscallInterrupt() {
-    printf("System Call Interrupt: Executing privileged operation...\n");
-    int pid = rand() % MAX_PROCESSES;
-    int allocSize = rand() % (RAM_SIZE / 10);
-    if (allocateMemory(pid, allocSize) == 0) {
-        printf("System call successful: Allocated %d units of memory to Process %d.\n", allocSize, pid);
-    } else {
-        printf("System call failed: Not enough memory for Process %d.\n", pid);
-    }
-}
-
-// void -> void
-// Purpose: Handle a trap interrupt to address errors such as division by zero and invalid memory access.
-void trapInterrupt() {
-    printf("Trap Interrupt: Handling error...\n");
-    for (int i = 0; i < MAX_PROCESSES; i++) {
-        if (processTable[i].state == RUNNING && errorFlag) {
-            printf("Error in Process %d. Terminating...\n", processTable[i].pid);
-            processTable[i].state = TERMINATED;
-            deallocateMemory(processTable[i].pid);
-            errorFlag = 0;
-            break;
-        }
-    }
-}
 
 // -> void
 // Purpose: initialize the cache
@@ -735,8 +775,8 @@ void initCache(){
 // -> void
 // Purpose: initialize the process table
 void initProcesses(){
-	int burstTimes[] = {5, 3, 37, 7, 14, 10};
-    int arrivalTimes[] = {6, 4, 0, 10, 9, 3};
+	int burstTimes[] = {200, 100, 30, 125, 70};
+    int arrivalTimes[] = {26, 50, 0, 19, 60, 4};
     int priorities[] = {6, 3, 5, 4, 2, 1};
     int PCs[] = {0, 10, 0, 112, 58, 116};
 	for(int i = 0; i < MAX_PROCESSES; i++){
@@ -897,43 +937,6 @@ void executeProcess(int time, int processPID){
     for(int i = 0; i < time; i++){
         execute(processPID);
     }
-}
-
-// int -> void
-// Purpose: Handle interrupts by prioritizing them based on their assigned levels in the IVT.
-void handleInterrupt(int interruptType) {
-    static int activeInterrupt = -1;
-
-    if (activeInterrupt == -1 || IVT[interruptType].priority < IVT[activeInterrupt].priority) {
-        if (activeInterrupt != -1) {
-            printf("Deferring lower-priority interrupt %d\n", activeInterrupt);
-        }
-        activeInterrupt = interruptType;
-        IVT[interruptType].handler();
-        activeInterrupt = -1;
-    } else {
-        printf("Interrupt %d deferred due to higher-priority active interrupt %d.\n",
-               interruptType, activeInterrupt);
-    }
-}
-
-//PCB -> void()
-//does the context switch where the next processes PC, ACC, and state are changed so that the cpu runs this PCBs process.
-void contextSwitch(struct PCB* nextProcess){
-    PC = nextProcess->PC;
-    ACC = nextProcess->ACC;
-    processTable->state = RUNNING;
-    printf("Context switch complete! PID %d is now running...\n", nextProcess->pid);
-    return;
-}
-
-// int, int -> void
-// Purpose: Save the current process state and restore the next process state for execution.
-void dispatcher(int currentProcess, int nextProcess) {
-    printf("Dispatching: Switching from process %d to process %d.\n", currentProcess, nextProcess);
-    saveState(currentProcess);
-    loadState(nextProcess);
-    contextSwitch(&processTable[nextProcess]);
 }
 
 // int* -> void
@@ -1389,6 +1392,16 @@ void display_metrics() {
 		printf("\tCPU Utilization: %lf \n", metrics_table[i].cpu_utilization);
 		printf("\tCache Efficiency: %lf \n", metrics_table[i].cacheEfficiency);
 	}
+}
+
+
+// void -> void
+// Purpose: Initialize the Interrupt Vector Table (IVT) with interrupt types, priorities, and their handlers.
+void initIVT() {
+    IVT[TIMER_INT] = (struct IVTEntry){1, timerInterrupt};
+    IVT[IO_INT] = (struct IVTEntry){2, ioInterrupt};
+    IVT[SYSCALL_INT] = (struct IVTEntry){3, syscallInterrupt};
+    IVT[TRAP_INT] = (struct IVTEntry){4, trapInterrupt};
 }
 
 // -> int
